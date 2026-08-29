@@ -1,0 +1,17 @@
+target
+.git
+.gitignore
+.idea
+.vscode
+*.iml
+*.log
+logs
+tmp
+temp
+.env
+.env.*
+.codex
+codex
+**/.codex
+**/codex
+

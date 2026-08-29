@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: webhook-platform
+  profiles:
+    default: dev
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/webhook_platform}
+    username: ${DATABASE_USERNAME:webhook}
+    password: ${DATABASE_PASSWORD:webhook}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+webhook-platform:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  secret-encryption-key: ${WEBHOOK_SECRET_ENCRYPTION_KEY:}
+
