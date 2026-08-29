@@ -30,6 +30,7 @@ public class SecurityConfiguration {
             GoogleOidcUserService googleOidcUserService,
             OAuth2AuthorizedClientRepository authorizedClientRepository,
             RestAuthenticationEntryPoint restAuthenticationEntryPoint,
+            RestAccessDeniedHandler restAccessDeniedHandler,
             @Value("${webhook-platform.frontend-url}") String frontendUrl) throws Exception {
         String trustedFrontendUrl = trustedFrontendUrl(frontendUrl);
         HttpSessionCsrfTokenRepository csrfTokenRepository = new HttpSessionCsrfTokenRepository();
@@ -47,8 +48,10 @@ public class SecurityConfiguration {
                         .requestMatchers("/healthz", "/error", "/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me", "/api/v1/auth/csrf").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
+                        .requestMatchers("/api/v1/applications/**", "/api/v1/api-keys/**").authenticated()
                         .anyRequest().denyAll())
                 .exceptionHandling(exceptions -> exceptions
+                        .accessDeniedHandler(restAccessDeniedHandler)
                         .defaultAuthenticationEntryPointFor(
                                 restAuthenticationEntryPoint,
                                 request -> request.getRequestURI().startsWith(request.getContextPath() + "/api/")))
@@ -78,7 +81,7 @@ public class SecurityConfiguration {
 
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(origin));
-        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Accept", "Content-Type", "X-CSRF-TOKEN"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
