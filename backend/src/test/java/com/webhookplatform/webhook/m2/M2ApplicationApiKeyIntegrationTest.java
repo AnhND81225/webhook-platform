@@ -379,7 +379,7 @@ class M2ApplicationApiKeyIntegrationTest {
         assertThat(jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                 String.class))
-                .containsExactly("1", "2", "3");
+                .containsExactly("1", "2", "3", "4");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM applications", Long.class)).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM api_keys", Long.class)).isZero();
     }

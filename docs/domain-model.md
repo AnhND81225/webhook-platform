@@ -257,7 +257,7 @@ Example:
 ai.solution.completed
 ```
 
-## Suggested Fields
+## M4 Fields
 
 ```text
 id
@@ -265,10 +265,10 @@ application_id
 source_event_id
 event_type
 payload
-occurred_at
-received_at
 created_at
 ```
+
+M4 stores `payload` as a required JSON object in PostgreSQL `JSONB`. `source_event_id` is a trimmed nonblank producer-supplied value up to 255 characters, and `event_type` uses the same lower-case dotted format as subscriptions. M4 does not accept producer timestamps; `created_at` records platform acceptance time.
 
 Recommended payload storage:
 

@@ -7,9 +7,14 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
@@ -21,10 +26,41 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 
+import com.webhookplatform.webhook.event.ProducerRequestSizeFilter;
+
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfiguration {
 
     @Bean
+    @Order(1)
+    SecurityFilterChain producerSecurityFilterChain(
+            HttpSecurity http,
+            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
+            ProducerRequestSizeFilter producerRequestSizeFilter,
+            ProducerAuthenticationEntryPoint producerAuthenticationEntryPoint) throws Exception {
+        return http
+                .securityMatcher(request -> HttpMethod.POST.matches(request.getMethod())
+                        && "/api/v1/events".equals(request.getRequestURI().substring(request.getContextPath().length())))
+                .cors(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable)
+                .securityContext(context -> context
+                        .securityContextRepository(new NullSecurityContextRepository())
+                        .requireExplicitSave(false))
+                .sessionManagement(sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .requestCache(AbstractHttpConfigurer::disable)
+                .oauth2Login(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(requests -> requests
+                        .requestMatchers(HttpMethod.POST, "/api/v1/events").authenticated()
+                        .anyRequest().denyAll())
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(producerAuthenticationEntryPoint))
+                .addFilterBefore(apiKeyAuthenticationFilter, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(producerRequestSizeFilter, ApiKeyAuthenticationFilter.class)
+                .build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             GoogleOidcUserService googleOidcUserService,

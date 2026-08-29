@@ -72,9 +72,8 @@ POST /api/v1/events
 ```json
 {
   "sourceEventId": "evt-ai-982",
-  "type": "ai.solution.completed",
-  "occurredAt": "2026-08-29T05:20:14Z",
-  "data": {
+  "eventType": "ai.solution.completed",
+  "payload": {
     "solutionId": "sol_7392",
     "subject": "mathematics",
     "status": "COMPLETED"
@@ -86,10 +85,11 @@ POST /api/v1/events
 
 ```text
 sourceEventId
-type
-occurredAt
-data
+eventType
+payload
 ```
+
+`payload` must be a JSON object; an empty object is valid, while arrays, primitives, and `null` are rejected. The raw request body is limited to 1 MiB. The request does not accept an Application ID because identity derives exclusively from the authenticated API key.
 
 ### Behavior
 
@@ -99,31 +99,29 @@ The platform must:
 2. resolve application
 3. validate event input
 4. check `(application_id, source_event_id)` idempotency
-5. persist the event if new
-6. create deliveries for matching active subscriptions
-7. return before external HTTP delivery occurs
+5. persist the immutable event if new
+6. return without selecting subscriptions or creating deliveries
 
 ### Response
 
 Recommended:
 
 ```http
-202 Accepted
+201 Created
 ```
 
 ```json
 {
   "id": "evt_01J67FC92X",
   "sourceEventId": "evt-ai-982",
-  "type": "ai.solution.completed",
-  "status": "ACCEPTED",
-  "deliveryCount": 3
+  "eventType": "ai.solution.completed",
+  "createdAt": "2026-08-29T05:20:14Z"
 }
 ```
 
 ### Duplicate Source Event
 
-If the same application republishes the same `sourceEventId`, the platform should return the existing accepted event instead of creating duplicate deliveries.
+If the same application republishes the same `sourceEventId` with the same event type and JSONB-equivalent payload, the platform returns the existing event instead of creating a duplicate row.
 
 Recommended response:
 
@@ -135,11 +133,12 @@ Recommended response:
 {
   "id": "evt_01J67FC92X",
   "sourceEventId": "evt-ai-982",
-  "type": "ai.solution.completed",
-  "status": "ALREADY_ACCEPTED",
-  "deliveryCount": 3
+  "eventType": "ai.solution.completed",
+  "createdAt": "2026-08-29T05:20:14Z"
 }
 ```
+
+Reusing a source event ID with a different event type or JSONB payload returns `409 SOURCE_EVENT_ID_CONFLICT`.
 
 ---
 
@@ -503,7 +502,7 @@ M2 responses use the safe core shape:
 }
 ```
 
-M2 defines `VALIDATION_ERROR`, `INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `APPLICATION_NOT_FOUND`, `API_KEY_NOT_FOUND`, and `APPLICATION_SLUG_CONFLICT`. Database errors, hashes, and security internals are never exposed. Request IDs, timestamps, and field-level error arrays may be added consistently in a later cross-cutting API milestone.
+M4 additionally defines generic producer `INVALID_API_KEY`, `INVALID_EVENT_REQUEST`, `SOURCE_EVENT_ID_CONFLICT`, and `PAYLOAD_TOO_LARGE` errors. Database errors, hashes, and security internals are never exposed. Request IDs, timestamps, and field-level error arrays may be added consistently in a later cross-cutting API milestone.
 
 Example:
 

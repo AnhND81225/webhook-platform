@@ -1,8 +1,8 @@
 # Webhook Delivery Platform
 
-Current milestone: **M3 — Webhook Endpoint + Subscription**
+Current milestone: **M4 — Event Ingestion + Producer API Key Authentication**
 
-This standalone platform will receive domain events from producer applications and reliably deliver them to subscribed HTTP webhook endpoints. M3 adds owner-scoped endpoint configuration and exact event-type subscriptions on top of the M2 Application/API-key foundation. Event ingestion and webhook delivery are not implemented yet.
+This standalone platform receives immutable domain events from authenticated producer applications and will reliably deliver them to subscribed HTTP webhook endpoints. M4 adds producer API-key authentication and idempotent event persistence on top of the M3 endpoint/subscription foundation. Delivery creation and outbound delivery remain later milestones.
 
 ## Architecture and technology
 
@@ -59,7 +59,7 @@ Copy `.env.example` to a local `.env` and provide values as needed. Local defaul
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret; required to start the backend |
 | `FRONTEND_URL` | Exact canonical dashboard origin and trusted post-login target; production uses `https://webhook.<domain>` |
 | `SESSION_TIMEOUT` | Backend session idle timeout; defaults to `30m` |
-| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M2 |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M4 |
 | `SPRING_PROFILES_ACTIVE` | Use `dev` locally or `prod` in production |
 | `VITE_API_BASE_URL` | Frontend backend base URL; defaults to `http://localhost:8080` |
 
@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations `V1__create_users.sql`, `V2__create_applications_and_api_keys.sql`, and `V3__create_webhook_endpoints_and_subscriptions.sql` own the M1–M3 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations `V1__create_users.sql`, `V2__create_applications_and_api_keys.sql`, `V3__create_webhook_endpoints_and_subscriptions.sql`, and `V4__create_webhook_events.sql` own the M1–M4 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -115,7 +115,7 @@ Create a production build with `npm run build`. Run authentication UI tests with
 Build the backend image:
 
 ```bash
-docker build -t webhook-platform-backend:m2 backend
+docker build -t webhook-platform-backend:m4 backend
 ```
 
 For a local image smoke test, run it against the local PostgreSQL instance:
@@ -129,7 +129,7 @@ docker run --rm -p 8080:8080 \
   -e GOOGLE_CLIENT_ID=local-client-id \
   -e GOOGLE_CLIENT_SECRET=local-client-secret \
   -e FRONTEND_URL=http://localhost:5173 \
-  webhook-platform-backend:m2
+  webhook-platform-backend:m4
 ```
 
 Production uses the same image with its RDS URL and credentials supplied through protected EC2 runtime configuration. Secrets are never baked into the image.
@@ -147,10 +147,10 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M3 status and MVP scope
+## M4 status and MVP scope
 
-M3 implements authenticated, Application-scoped endpoint create/list/detail/update APIs and one-row-per-event-type subscription create/list/delete APIs. Endpoints are `ACTIVE` or `DISABLED`; disabling preserves subscriptions. Hosted runtime requires HTTPS endpoints and rejects obvious unsafe literal targets. Only the local `dev` profile permits `http://localhost` or `http://127.0.0.1` for controlled testing.
+M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
-M3 does not implement producer API-key authentication, event ingestion, outbound webhook delivery, events, deliveries, attempts, workers, retries, HMAC signing, signing-secret storage, API-key expiration/rotation, dashboard UI, or AI Study Assistant integration. DNS, redirect, and resolved-IP SSRF protection remain a delivery-time concern for a later milestone.
+M4 does not create deliveries, select subscriptions, call endpoints, implement workers, retries, HMAC signing, signing-secret storage, API-key expiration/rotation, dashboard event UI, or AI Study Assistant integration. M5 will create `WebhookDelivery` rows from persisted events and subscriptions. DNS, redirect, and resolved-IP SSRF protection remain a delivery-time concern for outbound delivery.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.

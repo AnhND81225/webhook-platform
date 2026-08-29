@@ -14,6 +14,8 @@ Developer -> Google OAuth -> Dashboard
 Producer Application -> API Key -> Event Ingestion API
 ```
 
+M4 uses the single canonical producer format `Authorization: Bearer <full-api-key>` on `POST /api/v1/events`. Producer authentication is stateless and does not read a dashboard session. CSRF remains enabled for dashboard mutations and is disabled only for this producer route.
+
 ---
 
 ## Why Google OAuth

@@ -87,6 +87,10 @@ public class ApiKey {
         }
     }
 
+    void markUsed(Instant now) {
+        lastUsedAt = now;
+    }
+
     public UUID getId() {
         return id;
     }
