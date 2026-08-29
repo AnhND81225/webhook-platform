@@ -173,16 +173,16 @@ This is not required for MVP.
 
 # 9. Endpoint URL Validation
 
-Version 1 should require valid HTTPS URLs for non-local environments.
+Hosted runtime requires valid HTTPS endpoint URLs. This rule is based on the server runtime profile, never on `Application.environment`.
 
-Development exceptions may allow:
+Only the local `dev` profile may allow:
 
 ```text
 http://localhost
 http://127.0.0.1
 ```
 
-for local testing.
+for controlled local testing. Hosted runtime rejects localhost, loopback, and obvious unsafe private literal IP targets.
 
 Reject obviously invalid schemes such as:
 
@@ -206,7 +206,7 @@ Production-oriented design should consider blocking:
 
 Development mode may need controlled exceptions for localhost mock consumers.
 
-At minimum, document SSRF as a known security boundary even if full protection is introduced after MVP.
+M3 performs configuration-time validation only. Delivery-time DNS resolution, redirect validation, and resolved-IP SSRF protection remain required when outbound webhook delivery is introduced.
 
 ---
 

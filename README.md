@@ -1,8 +1,8 @@
 # Webhook Delivery Platform
 
-Current milestone: **M2 — Application + API Key**
+Current milestone: **M3 — Webhook Endpoint + Subscription**
 
-This standalone platform will receive domain events from producer applications and reliably deliver them to subscribed HTTP webhook endpoints. M2 adds owner-scoped producer Applications and reveal-once API-key lifecycle management on top of the M1 Google OIDC foundation. Event ingestion and webhook delivery are not implemented yet.
+This standalone platform will receive domain events from producer applications and reliably deliver them to subscribed HTTP webhook endpoints. M3 adds owner-scoped endpoint configuration and exact event-type subscriptions on top of the M2 Application/API-key foundation. Event ingestion and webhook delivery are not implemented yet.
 
 ## Architecture and technology
 
@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations `V1__create_users.sql` and `V2__create_applications_and_api_keys.sql` own the M1/M2 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations `V1__create_users.sql`, `V2__create_applications_and_api_keys.sql`, and `V3__create_webhook_endpoints_and_subscriptions.sql` own the M1–M3 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -147,10 +147,10 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M2 status and MVP scope
+## M3 status and MVP scope
 
-M2 implements authenticated Application create/list/detail/update APIs, owner-scoped authorization, Application status and environment, API-key creation/list/revocation APIs, SHA-256 storage of high-entropy keys, and reveal-once raw credentials. The raw key is never persisted and cannot be recovered if its one creation response is lost. The full React Applications/API Keys dashboard remains deferred to M11.
+M3 implements authenticated, Application-scoped endpoint create/list/detail/update APIs and one-row-per-event-type subscription create/list/delete APIs. Endpoints are `ACTIVE` or `DISABLED`; disabling preserves subscriptions. Hosted runtime requires HTTPS endpoints and rejects obvious unsafe literal targets. Only the local `dev` profile permits `http://localhost` or `http://127.0.0.1` for controlled testing.
 
-M2 does not implement producer API-key authentication, event ingestion, endpoints, subscriptions, events, deliveries, attempts, workers, retries, HMAC signing, API-key expiration/rotation, or AI Study Assistant integration.
+M3 does not implement producer API-key authentication, event ingestion, outbound webhook delivery, events, deliveries, attempts, workers, retries, HMAC signing, signing-secret storage, API-key expiration/rotation, dashboard UI, or AI Study Assistant integration. DNS, redirect, and resolved-IP SSRF protection remain a delivery-time concern for a later milestone.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.
