@@ -252,9 +252,13 @@ Webhook events should notify consumers, not automatically mirror all application
 
 # 13. Dashboard Security
 
-Version 1 may use simple development-only dashboard access while core webhook behavior is built.
+Dashboard developers authenticate through Google OIDC. The backend maps the validated Google `sub` to a local user and stores authentication in a server-managed session.
 
-Before public deployment, dashboard management APIs require authentication and authorization.
+Production session cookies are host-only, `HttpOnly`, `Secure`, and `SameSite=Lax`. Authenticated production deployments require related custom frontend/API hosts under the same registrable site. Those hosts are still different origins, so credentialed CORS permits only the configured frontend origin. No broad cookie `Domain` is configured, and CSRF remains enabled for logout and future dashboard mutations.
+
+Changing a local user to `DISABLED` blocks subsequent logins but does not revoke an already-authenticated M1 session. The existing session remains valid until logout, idle expiration, backend restart, or explicit invalidation. This accepted M1 limitation avoids per-request database lookups and distributed revocation infrastructure.
+
+Google tokens are never returned to the frontend or persisted in application tables.
 
 Full multi-user RBAC is out of MVP scope.
 

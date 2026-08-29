@@ -365,7 +365,7 @@ Do not implement unless requirements change:
 - billing
 - organizations
 - team permissions
-- OAuth providers
+- additional OAuth providers beyond Google
 - multi-region delivery
 - advanced routing rules
 - webhook transformations

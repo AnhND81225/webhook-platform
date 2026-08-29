@@ -1,4 +1,3 @@
 # Flyway migrations
 
-M0 intentionally creates no database tables. Add versioned SQL migrations here when a later milestone introduces the first persisted domain concept.
-
+Flyway owns all schema changes. `V1__create_users.sql` introduces the local dashboard user required by M1; Hibernate remains configured with `ddl-auto=validate`.

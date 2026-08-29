@@ -21,9 +21,33 @@ Content-Type: application/json
 
 ---
 
-# 2. Producer API
+# 2. Dashboard Authentication API
 
-## 2.1 Authentication
+Dashboard developers authenticate through Google OIDC and a backend-managed session.
+
+```http
+GET /api/v1/auth/me
+```
+
+Returns the local user ID, email, display name, and nullable avatar URL. Unauthenticated requests return JSON `401 Unauthorized`. Google identity claims and tokens are never returned.
+
+```http
+GET /api/v1/auth/csrf
+```
+
+Returns a session-backed CSRF token for authenticated dashboard mutations.
+
+```http
+POST /api/v1/auth/logout
+```
+
+Requires the CSRF token, invalidates the local session, and returns `204 No Content`.
+
+---
+
+# 3. Producer API
+
+## 3.1 Authentication
 
 Producer requests use an API key.
 
@@ -37,7 +61,7 @@ The API key identifies the producer application.
 
 ---
 
-## 2.2 Publish Event
+## 3.2 Publish Event
 
 ```http
 POST /api/v1/events
@@ -119,7 +143,7 @@ Recommended response:
 
 ---
 
-# 3. Application Management API
+# 4. Application Management API
 
 ## Create Application
 
@@ -157,7 +181,7 @@ PATCH /api/v1/applications/{applicationId}
 
 ---
 
-# 4. API Key Management
+# 5. API Key Management
 
 ## Create API Key
 
@@ -201,7 +225,7 @@ POST /api/v1/api-keys/{apiKeyId}/revoke
 
 ---
 
-# 5. Endpoint Management
+# 6. Endpoint Management
 
 ## Create Endpoint
 
@@ -293,7 +317,7 @@ POST /api/v1/endpoints/{endpointId}/test
 
 ---
 
-# 6. Subscription Management
+# 7. Subscription Management
 
 A simple version may manage subscriptions as part of endpoint create/update.
 
@@ -317,7 +341,7 @@ Example:
 
 ---
 
-# 7. Event Query API
+# 8. Event Query API
 
 ## List Events
 
@@ -376,7 +400,7 @@ Example:
 
 ---
 
-# 8. Delivery API
+# 9. Delivery API
 
 ## List Deliveries
 
@@ -454,7 +478,7 @@ Expected behavior is defined in `retry-policy.md`.
 
 ---
 
-# 9. Dashboard Overview API
+# 10. Dashboard Overview API
 
 To avoid excessive frontend aggregation, version 1 may expose a dashboard summary endpoint.
 
@@ -479,7 +503,7 @@ This endpoint is optional if existing query endpoints can efficiently provide th
 
 ---
 
-# 10. Error Format
+# 11. Error Format
 
 Use a consistent error response.
 
@@ -512,7 +536,7 @@ Validation example:
 
 ---
 
-# 11. API Design Principles
+# 12. API Design Principles
 
 - use stable identifiers
 - use versioned routes
