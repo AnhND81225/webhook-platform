@@ -84,7 +84,11 @@ Optional later:
 
 Version 1 keys may have application-level event-publish permission only.
 
-M2 statuses are `ACTIVE` and `REVOKED`. Revocation is irreversible and idempotent. Expiration, reactivation, automated rotation, and producer authentication are deferred. If a client does not receive the one-time creation response, the key cannot be recovered; create a replacement and revoke the unusable key.
+M2 statuses are `ACTIVE` and `REVOKED`. Revocation is irreversible and idempotent. Expiration, reactivation, and automated rotation are deferred. If a client does not receive the one-time creation response, the key cannot be recovered; create a replacement and revoke the unusable key.
+
+M4 activates producer authentication exclusively for `POST /api/v1/events`. The complete Bearer key is SHA-256 hashed and looked up by unique `key_hash`; the safe prefix, Application ID, and slug never authenticate a request. A key and its owning Application must both be `ACTIVE`. All credential failures return the same `401 INVALID_API_KEY` response, and successful credential validation updates `last_used_at` even if later event validation fails.
+
+Producer ingestion uses a dedicated stateless security chain with no session lookup, OAuth login, request cache, or CSRF requirement. Dashboard routes remain session/OIDC authenticated and CSRF-protected. A dashboard session cannot substitute for a producer key, and a producer key cannot access dashboard APIs.
 
 ---
 
@@ -278,6 +282,8 @@ Future protections may include:
 - API key usage quotas
 
 For MVP, payload size limits should still be enforced.
+
+M4 limits the raw producer request body to 1 MiB, including requests without `Content-Length`. Event payloads must be JSON objects; arrays, primitives, and null are rejected. Do not log raw credentials, key hashes, Authorization headers, or complete event payloads.
 
 ---
 
