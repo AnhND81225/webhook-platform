@@ -72,6 +72,17 @@ button,
   padding: 32px;
 }
 
+.state-panel {
+  display: grid;
+  width: min(100%, 480px);
+  gap: 12px;
+  padding: 32px;
+}
+
+.error-message {
+  color: #ba1a1a;
+}
+
 .eyebrow,
 .mono {
   color: #575e70;
@@ -131,6 +142,24 @@ button,
   align-items: center;
   border-bottom: 1px solid #e1e3e4;
   padding: 0 32px;
+  background: #ffffff;
+  justify-content: space-between;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #464555;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.secondary-button {
+  min-height: 32px;
+  border: 1px solid #e1e3e4;
+  padding: 0 12px;
+  color: #191c1d;
   background: #ffffff;
 }
 

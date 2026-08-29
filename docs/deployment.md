@@ -27,14 +27,18 @@ Version 1 should avoid unnecessary infrastructure such as:
 Version 1 production deployment:
 
 ```text
-Vercel
+Vercel deployment
+   |
+   v
+custom frontend domain
+webhook.<domain>
    |
    | HTTPS
    v
-AWS EC2
+api.webhook.<domain>
    |
    v
-Nginx
+AWS EC2 / Nginx
    |
    v
 Dockerized Spring Boot
@@ -44,7 +48,7 @@ Dockerized Spring Boot
 AWS RDS for PostgreSQL
 ```
 
-The React frontend and backend are deployed separately. The Spring Boot API and delivery worker run in the same stateless container for Version 1.
+The React frontend and backend are deployed separately. Production dashboard authentication requires the frontend and backend custom hosts to share the same registrable site. The Spring Boot API and delivery worker run in the same stateless container for Version 1.
 
 The backend must be reachable over HTTPS because it handles:
 
@@ -52,6 +56,8 @@ The backend must be reachable over HTTPS because it handles:
 - dashboard APIs
 - producer event ingestion
 - webhook management
+
+In production, Nginx must forward the original host, scheme, and client forwarding headers. The `prod` Spring profile processes those forwarded headers so OAuth callback URLs remain HTTPS.
 
 ---
 
@@ -64,6 +70,8 @@ Recommended:
 ```text
 Vercel
 ```
+
+Vercel hosts the deployment, but the authenticated production dashboard must use a related custom domain such as `webhook.<domain>` when the API is `api.webhook.<domain>`. A default `*.vercel.app` hostname may remain available for preview builds or non-authenticated verification; it is not the canonical production authentication origin when the API is on an unrelated custom domain.
 
 Alternative:
 
@@ -183,7 +191,8 @@ DATABASE_PASSWORD=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-FRONTEND_URL=
+FRONTEND_URL=https://webhook.<domain>
+SESSION_TIMEOUT=30m
 
 SESSION_COOKIE_SECURE=true
 
@@ -197,6 +206,8 @@ DELIVERY_HTTP_READ_TIMEOUT_MS=10000
 
 Exact names may differ from implementation.
 
+`FRONTEND_URL` is the canonical custom frontend origin. It is configuration-driven and must not include a path, query, or fragment. The backend uses it as the exact CORS origin and the fixed post-login redirect base.
+
 Secrets must not be committed to Git. The RDS URL shown above is a placeholder shape, not a deployable endpoint.
 
 Do not hard-code the RDS endpoint, AWS region, database credentials, or security group identifiers. M0 supplies credentials through protected EC2 runtime environment configuration. AWS Secrets Manager or Systems Manager Parameter Store may be considered in a later deployment-hardening milestone.
@@ -206,6 +217,15 @@ Do not hard-code the RDS endpoint, AWS region, database credentials, or security
 # 6. Google OAuth Production Configuration
 
 Google OAuth requires production URLs to be explicitly configured.
+
+Production authentication requires related custom domains:
+
+```text
+Frontend: https://webhook.<domain>
+Backend:  https://api.webhook.<domain>
+```
+
+The exact real domain remains environment configuration and must not be hard-coded.
 
 Example frontend:
 
@@ -284,16 +304,9 @@ Secure=true
 SameSite=Lax
 ```
 
-If frontend/backend deployment topology requires cross-site cookies, evaluate:
+Related production domains are mandatory for the authenticated dashboard. Hosts such as `webhook.example.com` and `api.webhook.example.com` are different origins, so CORS is still required, but they share the same registrable site, so `SameSite=Lax` permits the credentialed API session.
 
-```text
-SameSite=None
-Secure=true
-```
-
-but only use it when necessary.
-
-Prefer keeping frontend and backend under the same parent domain when possible.
+The `WEBHOOK_SESSION` cookie remains host-only on the API host. Do not set a broad cookie `Domain`; the frontend never needs to read or receive the cookie directly.
 
 Example:
 
@@ -301,6 +314,8 @@ Example:
 webhook.example.com
 api.webhook.example.com
 ```
+
+M1 uses an in-memory servlet session suitable for the initial single backend instance. A backend restart signs users out. The default 30-minute session setting is an idle timeout rather than an absolute lifetime. Multiple backend instances would require a deliberate shared-session or routing strategy in a later deployment milestone.
 
 ---
 
@@ -616,7 +631,7 @@ Benefits:
 - cleaner cookie policy
 - professional portfolio presentation
 
-A custom domain is optional for the first deployment.
+A related custom frontend/API domain pair is mandatory for the production authenticated dashboard. The Vercel default domain remains suitable only for previews or non-authenticated verification when it is unrelated to the API domain.
 
 ---
 
@@ -626,10 +641,10 @@ A practical low-cost setup:
 
 ```text
 Frontend
-Vercel
+Vercel with custom domain webhook.<domain>
 
 Backend
-Docker on AWS EC2 behind Nginx
+api.webhook.<domain> routed to Docker on AWS EC2 behind Nginx
 
 Database
 AWS RDS for PostgreSQL
@@ -656,8 +671,8 @@ Recommended order:
 4. Deploy the Spring Boot container to EC2 behind Nginx
 5. Verify /healthz through HTTPS
 6. Configure Google OAuth production callback
-7. Deploy React frontend to Vercel
-8. Configure frontend/backend URLs
+7. Deploy React frontend to Vercel and attach the related `webhook.<domain>` custom domain
+8. Configure `FRONTEND_URL` and `VITE_API_BASE_URL` for the related frontend/API origins
 9. Verify Google login
 10. Create first application
 11. Generate producer API key

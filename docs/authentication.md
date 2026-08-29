@@ -68,6 +68,12 @@ Constraint:
 UNIQUE(google_subject)
 ```
 
+Local IDs are UUIDs. Email is required and verified but is not unique. Different Google subjects are never merged by email. Status is `ACTIVE` or `DISABLED`; disabled users cannot establish a new session.
+
+M1 does not immediately revoke a session that was established while the user was active. If the corresponding row is later changed to `DISABLED`, that existing session remains usable until logout, session idle expiration, backend restart, or explicit session invalidation. This limitation is accepted for M1; per-request database checks and distributed session revocation are outside this milestone.
+
+On repeat login, email, display name, avatar URL, and `last_login_at` are synchronized. Missing `sub`, missing email, or an unverified email fails authentication. Missing name falls back to email and avatar is nullable.
+
 ---
 
 ## Resource Ownership
@@ -117,6 +123,14 @@ Secure
 SameSite=Lax
 ```
 
+The production frontend and backend must use related custom hosts such as `webhook.<domain>` and `api.webhook.<domain>`. They are different origins, so exact credentialed CORS is required, but they share one registrable site, so `SameSite=Lax` is valid. The cookie is host-only on the API host; no broad `Domain` attribute is set and frontend JavaScript does not need direct access to it.
+
+Sessions expire after 30 minutes of inactivity by default and use session-fixation protection. This is an idle timeout, not an absolute maximum lifetime: activity can extend a session. React sends cookies with `credentials: include`. Session-backed CSRF tokens are obtained from `GET /api/v1/auth/csrf` and required for `POST /api/v1/auth/logout` and future mutations.
+
+Successful login redirects only to configured `${FRONTEND_URL}/app`; failure redirects to `${FRONTEND_URL}/login?error=oauth`. Arbitrary redirect parameters are not accepted.
+
+Only `openid`, `profile`, and `email` scopes are requested. Google tokens remain backend-side and are never stored in application tables or returned by `/api/v1/auth/me`.
+
 ---
 
 ## Environment Configuration
@@ -126,7 +140,10 @@ Backend environment variables:
 ```text
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+FRONTEND_URL=https://webhook.<domain>
 ```
+
+In production, `FRONTEND_URL` is the canonical related custom frontend origin. It must be an HTTP/HTTPS origin with no path, query, or fragment and is used as both the exact trusted CORS origin and the fixed post-login redirect base.
 
 Never commit real values.
 

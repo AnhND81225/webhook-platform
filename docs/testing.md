@@ -289,6 +289,25 @@ Then:
 
 # 10. API Security Tests
 
+Dashboard authentication tests include:
+
+- first Google login creates one local user
+- repeat login reuses the Google subject mapping
+- profile claims synchronize without email-based account merging
+- missing or unverified identity claims fail
+- `/api/v1/auth/me` returns safe local fields or `401`
+- logout requires CSRF and invalidates the session
+- logout expires the `WEBHOOK_SESSION` cookie
+- OAuth success removes the authorized Google client while preserving the local authenticated session
+- fixed OAuth redirects ignore user-controlled redirect parameters
+- configured CORS accepts the trusted origin and rejects unrelated origins
+- production configuration keeps the host-only session cookie `Secure` with `SameSite=Lax`
+- `/healthz` remains public
+
+Use mocked OIDC identities and PostgreSQL integration tests. Automated tests must not call Google.
+
+Producer API security tests, when that later milestone is implemented, include:
+
 Test:
 
 - missing API key -> 401

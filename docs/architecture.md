@@ -184,7 +184,9 @@ Responsibilities:
 Responsibilities:
 
 - producer API key authentication
-- dashboard authentication when introduced
+- Google OIDC dashboard authentication
+- local authenticated-user identity
+- backend session, CORS, and CSRF boundaries
 - sensitive log filtering
 
 ---

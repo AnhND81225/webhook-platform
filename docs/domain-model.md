@@ -27,6 +27,10 @@ These concepts must remain separate.
 ## 2. Entity Relationship Summary
 
 ```text
+User
+   |
+   +--< Application (introduced later)
+
 Application
    |
    +--< ApiKey
@@ -45,6 +49,7 @@ WebhookEndpoint
 Recommended cardinalities:
 
 ```text
+User 1 --- N Application
 Application 1 --- N ApiKey
 Application 1 --- N WebhookEvent
 
@@ -58,7 +63,33 @@ WebhookDelivery 1 --- N WebhookDeliveryAttempt
 
 ---
 
-# 3. Application
+# 3. User
+
+## Purpose
+
+Represents a developer authenticated through Google OpenID Connect.
+
+## Fields
+
+```text
+id
+google_subject
+email
+display_name
+avatar_url
+status
+last_login_at
+created_at
+updated_at
+```
+
+`google_subject` is the immutable external identity and is unique. Email is profile data, is not unique, and must not be used to merge identities. Status is `ACTIVE` or `DISABLED`.
+
+M1 creates only this entity. The future `Application.owner_user_id` relationship is not implemented yet.
+
+---
+
+# 4. Application
 
 ## Purpose
 
@@ -97,7 +128,7 @@ Version 1 does not require organization/team modeling.
 
 ---
 
-# 4. ApiKey
+# 5. ApiKey
 
 ## Purpose
 
@@ -135,7 +166,7 @@ EXPIRED
 
 ---
 
-# 5. WebhookEndpoint
+# 6. WebhookEndpoint
 
 ## Purpose
 
@@ -178,7 +209,7 @@ The platform should not send new webhook deliveries to a disabled endpoint unles
 
 ---
 
-# 6. WebhookSubscription
+# 7. WebhookSubscription
 
 ## Purpose
 
@@ -214,7 +245,7 @@ Wildcard subscriptions are out of scope.
 
 ---
 
-# 7. WebhookEvent
+# 8. WebhookEvent
 
 ## Purpose
 
@@ -276,7 +307,7 @@ This provides producer-level idempotency.
 
 ---
 
-# 8. WebhookDelivery
+# 9. WebhookDelivery
 
 ## Purpose
 
@@ -328,7 +359,7 @@ Manual retry should not create duplicate base deliveries unless a future design 
 
 ---
 
-# 9. WebhookDeliveryAttempt
+# 10. WebhookDeliveryAttempt
 
 ## Purpose
 
@@ -373,7 +404,7 @@ Attempt 3 -> HTTP 200 -> 142 ms
 
 ---
 
-# 10. Derived Concepts
+# 11. Derived Concepts
 
 ## Endpoint Health
 
@@ -403,7 +434,7 @@ A separate event catalog can be introduced later if dynamic registration becomes
 
 ---
 
-# 11. Aggregate Boundaries
+# 12. Aggregate Boundaries
 
 Suggested conceptual aggregates:
 
@@ -435,7 +466,7 @@ Prefer explicit queries and IDs where they reduce accidental loading and N+1 iss
 
 ---
 
-# 12. Key Domain Questions and Decisions
+# 13. Key Domain Questions and Decisions
 
 ## Can one event create zero deliveries?
 

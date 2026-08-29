@@ -14,9 +14,27 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
 
 server:
   port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: ${SESSION_TIMEOUT:30m}
+      cookie:
+        name: WEBHOOK_SESSION
+        http-only: true
+        same-site: lax
 
 management:
   endpoints:
@@ -27,4 +45,3 @@ management:
 webhook-platform:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   secret-encryption-key: ${WEBHOOK_SECRET_ENCRYPTION_KEY:}
-
