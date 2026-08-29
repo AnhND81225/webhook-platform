@@ -184,17 +184,14 @@ Example:
 https://analytics.example.com/webhooks/ai
 ```
 
-## Suggested Fields
+## Fields
 
 ```text
 id
+application_id
 name
 url
-signing_secret_encrypted
 status
-consecutive_failure_count
-last_success_at
-last_failure_at
 created_at
 updated_at
 ```
@@ -204,14 +201,11 @@ updated_at
 ```text
 ACTIVE
 DISABLED
-FAILING
 ```
 
 ## Notes
 
-`FAILING` is operational state information and should not be treated as a permanent configuration mode.
-
-The platform should not send new webhook deliveries to a disabled endpoint unless product behavior explicitly changes.
+M3 owns endpoint configuration only. Signing secrets, endpoint health, failure counts, and delivery timestamps are deferred. The platform must not send new webhook deliveries to a disabled endpoint when delivery is introduced later.
 
 ---
 
@@ -228,7 +222,7 @@ Endpoint: AI Analytics
 Event type: ai.solution.completed
 ```
 
-## Suggested Fields
+## Fields
 
 ```text
 id
@@ -245,7 +239,7 @@ UNIQUE(endpoint_id, event_type)
 
 ## Notes
 
-Version 1 uses exact event-type matching.
+M3 uses exact lower-case dotted event-type matching. One endpoint may have many subscriptions, but each endpoint/event-type pair appears at most once.
 
 Wildcard subscriptions are out of scope.
 

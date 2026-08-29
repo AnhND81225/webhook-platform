@@ -250,7 +250,7 @@ Revocation is irreversible and idempotent. It returns safe metadata with status 
 ## Create Endpoint
 
 ```http
-POST /api/v1/endpoints
+POST /api/v1/applications/{applicationId}/endpoints
 ```
 
 Example:
@@ -258,11 +258,7 @@ Example:
 ```json
 {
   "name": "AI Analytics",
-  "url": "https://analytics.example.com/webhooks/ai",
-  "subscriptions": [
-    "ai.solution.completed",
-    "ai.grade.completed"
-  ]
+  "url": "https://analytics.example.com/webhooks/ai"
 }
 ```
 
@@ -274,90 +270,61 @@ Recommended response:
   "name": "AI Analytics",
   "url": "https://analytics.example.com/webhooks/ai",
   "status": "ACTIVE",
-  "subscriptions": [
-    "ai.solution.completed",
-    "ai.grade.completed"
-  ],
-  "signingSecret": "whsec_ONE_TIME_VISIBLE_SECRET"
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-01-01T00:00:00Z"
 }
 ```
 
-Full signing secret should be shown only according to the chosen secure secret-management design.
+Endpoint ownership derives from the authenticated dashboard user through the Application. M3 has no signing-secret response or storage.
 
 ## List Endpoints
 
 ```http
-GET /api/v1/endpoints
+GET /api/v1/applications/{applicationId}/endpoints
 ```
 
-Suggested filters:
-
-```text
-status
-search
-page
-size
-```
+Returns owned endpoints ordered by `createdAt DESC, id DESC`.
 
 ## Get Endpoint
 
 ```http
-GET /api/v1/endpoints/{endpointId}
+GET /api/v1/applications/{applicationId}/endpoints/{endpointId}
 ```
 
 ## Update Endpoint
 
 ```http
-PATCH /api/v1/endpoints/{endpointId}
+PATCH /api/v1/applications/{applicationId}/endpoints/{endpointId}
 ```
 
-## Disable Endpoint
+Only `name`, `url`, and `status` may be patched. Status is `ACTIVE` or `DISABLED`; disabling does not remove subscriptions. M3 has no delete endpoint API.
 
-```http
-POST /api/v1/endpoints/{endpointId}/disable
-```
-
-## Enable Endpoint
-
-```http
-POST /api/v1/endpoints/{endpointId}/enable
-```
-
-## Rotate Signing Secret
-
-```http
-POST /api/v1/endpoints/{endpointId}/rotate-secret
-```
-
-## Send Test Webhook
-
-```http
-POST /api/v1/endpoints/{endpointId}/test
-```
+Hosted runtime requires HTTPS and rejects localhost and unsafe literal IP targets. The local `dev` profile alone permits HTTP localhost/127.0.0.1 URLs for controlled testing. DNS, redirect, and resolved-IP SSRF checks are deferred until outbound delivery exists.
 
 ---
 
 # 7. Subscription Management
 
-A simple version may manage subscriptions as part of endpoint create/update.
-
-If explicit subscription endpoints are preferred:
+M3 manages one exact event type per Subscription row:
 
 ```http
-PUT /api/v1/endpoints/{endpointId}/subscriptions
+POST /api/v1/applications/{applicationId}/endpoints/{endpointId}/subscriptions
 ```
 
 Example:
 
 ```json
 {
-  "eventTypes": [
-    "ai.solution.completed",
-    "ai.grade.completed",
-    "ai.answer.reported"
-  ]
+  "eventType": "ai.solution.completed"
 }
 ```
+
+```http
+GET /api/v1/applications/{applicationId}/endpoints/{endpointId}/subscriptions
+DELETE /api/v1/applications/{applicationId}/endpoints/{endpointId}/subscriptions/{subscriptionId}
+```
+
+`UNIQUE(endpoint_id, event_type)` is the final duplicate-prevention guarantee. Duplicate creation returns `409 SUBSCRIPTION_ALREADY_EXISTS`. Cross-user and mismatched nested resources return `404`.
 
 ---
 

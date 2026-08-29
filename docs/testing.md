@@ -97,6 +97,8 @@ Test:
 
 M2 additionally verifies the V1-to-V2 migration on PostgreSQL, Hibernate schema validation, owner/slug uniqueness, owner and Application foreign keys, status/environment checks, unique key hashes, revocation consistency, and restricted deletes.
 
+M3 additionally verifies V1-to-V3 migration and Hibernate validation, Application-scoped endpoint/subscription ownership, endpoint status updates preserving subscriptions, exact subscription uniqueness, local versus hosted URL validation, CSRF protection, and cross-user `404` behavior.
+
 Important constraint test:
 
 ```text
