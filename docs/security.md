@@ -44,13 +44,15 @@ Recommended creation flow:
 4. store secure hash for verification
 5. discard raw value
 
-Suggested visible prefix:
+Visible prefix:
 
 ```text
 whk_live_7Fx
 ```
 
-Suggested key metadata:
+M2 generates 32 random bytes with `SecureRandom`, encodes them as unpadded Base64 URL text, and formats the credential as `whk_test_<secret>` for development or `whk_live_<secret>` for production. The complete raw key is hashed using SHA-256 and stored as a unique 64-character lowercase hexadecimal digest. The marker plus the first four secret characters is safe display metadata only and never authenticates a request.
+
+Stored key metadata:
 
 ```text
 id
@@ -61,7 +63,6 @@ key_hash
 status
 created_at
 last_used_at
-expires_at
 revoked_at
 ```
 
@@ -82,6 +83,8 @@ Optional later:
 - scoped permissions
 
 Version 1 keys may have application-level event-publish permission only.
+
+M2 statuses are `ACTIVE` and `REVOKED`. Revocation is irreversible and idempotent. Expiration, reactivation, automated rotation, and producer authentication are deferred. If a client does not receive the one-time creation response, the key cannot be recovered; create a replacement and revoke the unusable key.
 
 ---
 

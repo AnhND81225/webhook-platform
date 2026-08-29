@@ -1,8 +1,8 @@
 # Webhook Delivery Platform
 
-Current milestone: **M1 — Google OAuth + Local User**
+Current milestone: **M2 — Application + API Key**
 
-This standalone platform will receive domain events from producer applications and reliably deliver them to subscribed HTTP webhook endpoints. M1 adds Google OIDC dashboard authentication and local user persistence; webhook business functionality is not implemented yet.
+This standalone platform will receive domain events from producer applications and reliably deliver them to subscribed HTTP webhook endpoints. M2 adds owner-scoped producer Applications and reveal-once API-key lifecycle management on top of the M1 Google OIDC foundation. Event ingestion and webhook delivery are not implemented yet.
 
 ## Architecture and technology
 
@@ -59,7 +59,7 @@ Copy `.env.example` to a local `.env` and provide values as needed. Local defaul
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret; required to start the backend |
 | `FRONTEND_URL` | Exact canonical dashboard origin and trusted post-login target; production uses `https://webhook.<domain>` |
 | `SESSION_TIMEOUT` | Backend session idle timeout; defaults to `30m` |
-| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M1 |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M2 |
 | `SPRING_PROFILES_ACTIVE` | Use `dev` locally or `prod` in production |
 | `VITE_API_BASE_URL` | Frontend backend base URL; defaults to `http://localhost:8080` |
 
@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migration `V1__create_users.sql` owns the M1 user schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations `V1__create_users.sql` and `V2__create_applications_and_api_keys.sql` own the M1/M2 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -115,7 +115,7 @@ Create a production build with `npm run build`. Run authentication UI tests with
 Build the backend image:
 
 ```bash
-docker build -t webhook-platform-backend:m1 backend
+docker build -t webhook-platform-backend:m2 backend
 ```
 
 For a local image smoke test, run it against the local PostgreSQL instance:
@@ -129,7 +129,7 @@ docker run --rm -p 8080:8080 \
   -e GOOGLE_CLIENT_ID=local-client-id \
   -e GOOGLE_CLIENT_SECRET=local-client-secret \
   -e FRONTEND_URL=http://localhost:5173 \
-  webhook-platform-backend:m1
+  webhook-platform-backend:m2
 ```
 
 Production uses the same image with its RDS URL and credentials supplied through protected EC2 runtime configuration. Secrets are never baked into the image.
@@ -147,8 +147,10 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M1 status and MVP scope
+## M2 status and MVP scope
 
-M1 implements Google OIDC login, one local user per Google subject, secure backend sessions, `/api/v1/auth/me`, CSRF-protected logout, and a protected React shell. It does not implement applications, API keys, endpoints, subscriptions, events, deliveries, attempts, workers, retries, HMAC signing, dashboard business APIs/pages, or AI Study Assistant integration.
+M2 implements authenticated Application create/list/detail/update APIs, owner-scoped authorization, Application status and environment, API-key creation/list/revocation APIs, SHA-256 storage of high-entropy keys, and reveal-once raw credentials. The raw key is never persisted and cannot be recovered if its one creation response is lost. The full React Applications/API Keys dashboard remains deferred to M11.
+
+M2 does not implement producer API-key authentication, event ingestion, endpoints, subscriptions, events, deliveries, attempts, workers, retries, HMAC signing, API-key expiration/rotation, or AI Study Assistant integration.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.

@@ -96,9 +96,11 @@ Endpoint ownership can either:
 
 Recommended MVP decision:
 
-- `Application.owner_user_id`
+- `Application.owner_user_id` (implemented in M2)
 - endpoints are also scoped to the same authenticated owner
 - all dashboard queries enforce ownership server-side
+
+M2 Application and API-key management resolves the local user ID from the authenticated backend session. Application and API-key repository queries enforce ownership server-side, and missing or cross-user resources return the same `404` response.
 
 If cross-application shared endpoints are required later, introduce a Workspace model.
 

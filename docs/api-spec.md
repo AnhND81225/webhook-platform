@@ -145,6 +145,8 @@ Recommended response:
 
 # 4. Application Management API
 
+All Application APIs require an authenticated dashboard session. Mutations require the session CSRF token. Ownership always comes from the authenticated local user and is never accepted from request data. Missing and non-owned resources both return `404 APPLICATION_NOT_FOUND`.
+
 ## Create Application
 
 ```http
@@ -161,11 +163,17 @@ Example request:
 }
 ```
 
+`name` is trimmed, nonblank, and at most 120 characters. `slug` is immutable, at most 63 characters, and matches `^[a-z0-9]+(?:-[a-z0-9]+)*$`. It is unique per owner; a collision returns `409 APPLICATION_SLUG_CONFLICT`. `environment` is immutable and is either `DEVELOPMENT` or `PRODUCTION`.
+
+Returns `201 Created`, a `Location` header, and Application metadata. Status starts as `ACTIVE`.
+
 ## List Applications
 
 ```http
 GET /api/v1/applications
 ```
+
+Returns only the current user's Applications ordered by `createdAt DESC, id DESC`.
 
 ## Get Application
 
@@ -173,15 +181,21 @@ GET /api/v1/applications
 GET /api/v1/applications/{applicationId}
 ```
 
+Returns owned Application metadata.
+
 ## Update Application
 
 ```http
 PATCH /api/v1/applications/{applicationId}
 ```
 
+Accepts one or both of `name` and `status`. Status is `ACTIVE` or `DISABLED`. ID, owner, slug, and environment are immutable.
+
 ---
 
 # 5. API Key Management
+
+API-key management uses the authenticated dashboard session and owner-scoped authorization. Mutations require CSRF. Keys do not expire in M2.
 
 ## Create API Key
 
@@ -211,17 +225,23 @@ Response may contain the full key once:
 
 The full value must not be returned again.
 
+The response uses `Cache-Control: no-store`. Production Applications receive a `whk_live_` key and development Applications receive `whk_test_`. The secret contains 32 CSPRNG bytes encoded as unpadded Base64 URL text. If the response is lost, the raw key cannot be recovered.
+
 ## List API Keys
 
 ```http
 GET /api/v1/applications/{applicationId}/api-keys
 ```
 
+Returns owned key metadata ordered by `createdAt DESC, id DESC`: ID, name, safe prefix, status, nullable last-used time, creation time, and nullable revocation time. It never returns the raw key or hash.
+
 ## Revoke API Key
 
 ```http
 POST /api/v1/api-keys/{apiKeyId}/revoke
 ```
+
+Revocation is irreversible and idempotent. It returns safe metadata with status `REVOKED` and preserves the original `revokedAt` on repeated calls. Missing and non-owned keys both return `404 API_KEY_NOT_FOUND`.
 
 ---
 
@@ -506,6 +526,17 @@ This endpoint is optional if existing query endpoints can efficiently provide th
 # 11. Error Format
 
 Use a consistent error response.
+
+M2 responses use the safe core shape:
+
+```json
+{
+  "code": "APPLICATION_NOT_FOUND",
+  "message": "Application was not found."
+}
+```
+
+M2 defines `VALIDATION_ERROR`, `INVALID_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `APPLICATION_NOT_FOUND`, `API_KEY_NOT_FOUND`, and `APPLICATION_SLUG_CONFLICT`. Database errors, hashes, and security internals are never exposed. Request IDs, timestamps, and field-level error arrays may be added consistently in a later cross-cutting API milestone.
 
 Example:
 

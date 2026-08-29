@@ -29,7 +29,7 @@ These concepts must remain separate.
 ```text
 User
    |
-   +--< Application (introduced later)
+   +--< Application
 
 Application
    |
@@ -85,7 +85,7 @@ updated_at
 
 `google_subject` is the immutable external identity and is unique. Email is profile data, is not unique, and must not be used to merge identities. Status is `ACTIVE` or `DISABLED`.
 
-M1 creates only this entity. The future `Application.owner_user_id` relationship is not implemented yet.
+M1 introduced this entity. M2 adds the `Application.owner_user_id` relationship.
 
 ---
 
@@ -101,10 +101,11 @@ Example:
 AI Study Assistant
 ```
 
-## Suggested Fields
+## Fields
 
 ```text
 id
+owner_user_id
 name
 slug
 status
@@ -113,7 +114,7 @@ created_at
 updated_at
 ```
 
-## Suggested Status
+## Status
 
 ```text
 ACTIVE
@@ -122,7 +123,9 @@ DISABLED
 
 ## Notes
 
-Application identity is separate from user identity.
+Application identity is separate from user identity. Application IDs are UUIDs. Every Application belongs to exactly one local User through `owner_user_id`. Slugs are immutable, lowercase, and unique per owner. Names and status may be updated; environment is immutable.
+
+Environment is `DEVELOPMENT` or `PRODUCTION`. Status is `ACTIVE` or `DISABLED`. Disabling an Application does not revoke its keys; future producer authentication must require both the Application and key to be active.
 
 Version 1 does not require organization/team modeling.
 
@@ -134,7 +137,7 @@ Version 1 does not require organization/team modeling.
 
 Authenticates a producer application calling the event ingestion API.
 
-## Suggested Fields
+## Fields
 
 ```text
 id
@@ -144,17 +147,15 @@ key_prefix
 key_hash
 status
 last_used_at
-expires_at
 created_at
 revoked_at
 ```
 
-## Suggested Status
+## Status
 
 ```text
 ACTIVE
 REVOKED
-EXPIRED
 ```
 
 ## Invariants
@@ -163,6 +164,11 @@ EXPIRED
 - Raw API key is returned only at creation.
 - Raw API key must not be persisted.
 - API key metadata may be shown in the dashboard.
+- API keys contain 32 cryptographically random bytes and use `whk_test_` or `whk_live_` markers.
+- The complete raw key is hashed with SHA-256; only its lowercase digest and safe display prefix are stored.
+- Revocation is irreversible and idempotent.
+- `last_used_at` remains null until producer authentication is implemented.
+- Expiration and automated rotation are deferred.
 
 ---
 

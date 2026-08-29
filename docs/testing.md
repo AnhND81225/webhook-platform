@@ -95,6 +95,8 @@ Test:
 - attempt ordering
 - migration correctness
 
+M2 additionally verifies the V1-to-V2 migration on PostgreSQL, Hibernate schema validation, owner/slug uniqueness, owner and Application foreign keys, status/environment checks, unique key hashes, revocation consistency, and restricted deletes.
+
 Important constraint test:
 
 ```text
@@ -303,6 +305,18 @@ Dashboard authentication tests include:
 - configured CORS accepts the trusted origin and rejects unrelated origins
 - production configuration keeps the host-only session cookie `Secure` with `SameSite=Lax`
 - `/healthz` remains public
+
+M2 dashboard API tests additionally include:
+
+- authenticated and CSRF-protected Application/API-key mutations
+- owner-scoped Application create, list, detail, and patch
+- same-owner slug conflict and real concurrent collision handling
+- cross-user Application and API-key operations returning `404`
+- 32-byte `SecureRandom` credentials with environment markers
+- raw keys returned once and never persisted or listed
+- SHA-256 digest and safe-prefix persistence
+- irreversible, idempotent revocation
+- `last_used_at` remaining null until producer authentication exists
 
 Use mocked OIDC identities and PostgreSQL integration tests. Automated tests must not call Google.
 

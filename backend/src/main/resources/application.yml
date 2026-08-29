@@ -1,6 +1,9 @@
 spring:
   application:
     name: webhook-platform
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   profiles:
     default: dev
   datasource:
@@ -45,3 +48,7 @@ management:
 webhook-platform:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   secret-encryption-key: ${WEBHOOK_SECRET_ENCRYPTION_KEY:}
+
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
