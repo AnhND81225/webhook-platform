@@ -312,8 +312,9 @@ A safer pattern:
 
 1. atomically claim delivery
 2. commit claim
-3. perform external HTTP call
-4. persist attempt and final transition in a new transaction
+3. create an `IN_PROGRESS` attempt bound to the claim token and commit it
+4. perform one external HTTP call outside a database transaction
+5. persist the terminal attempt outcome and final delivery transition in one transaction
 
 This reduces long-held DB locks.
 

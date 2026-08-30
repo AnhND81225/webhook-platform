@@ -217,7 +217,7 @@ class M4EventIngestionIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO webhook_events (id, application_id, source_event_id, event_type, payload, created_at) VALUES (?, ?, 'bad', 'bad', '{}'::jsonb, CURRENT_TIMESTAMP)", UUID.randomUUID(), firstApplication))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7");
     }
 
     @Test

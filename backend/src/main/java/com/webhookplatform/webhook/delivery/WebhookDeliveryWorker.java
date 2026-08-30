@@ -1,8 +1,11 @@
 package com.webhookplatform.webhook.delivery;
 
-import java.time.Clock;
-import java.time.Instant;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.List;
+
+import javax.net.ssl.SSLHandshakeException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,20 +22,20 @@ class WebhookDeliveryWorker {
     private final WebhookDeliveryClaimService claims;
     private final WebhookDeliveryPayloadFactory payloadFactory;
     private final OutboundWebhookClient httpClient;
+    private final WebhookDeliveryAttemptService attempts;
     private final WebhookWorkerProperties properties;
-    private final Clock clock;
 
     WebhookDeliveryWorker(
             WebhookDeliveryClaimService claims,
             WebhookDeliveryPayloadFactory payloadFactory,
             OutboundWebhookClient httpClient,
-            WebhookWorkerProperties properties,
-            Clock clock) {
+            WebhookDeliveryAttemptService attempts,
+            WebhookWorkerProperties properties) {
         this.claims = claims;
         this.payloadFactory = payloadFactory;
         this.httpClient = httpClient;
+        this.attempts = attempts;
         this.properties = properties;
-        this.clock = clock;
     }
 
     @Scheduled(fixedDelayString = "${webhook-platform.worker.poll-interval:PT5S}")
@@ -49,23 +52,51 @@ class WebhookDeliveryWorker {
     }
 
     private void process(ClaimedDelivery delivery) {
-        Instant startedAt = clock.instant();
+        StartedWebhookDeliveryAttempt attempt = attempts.startAttempt(delivery).orElse(null);
+        if (attempt == null) {
+            return;
+        }
+        long startedNanos = System.nanoTime();
         WebhookDeliveryStatus finalStatus = WebhookDeliveryStatus.FAILED;
+        Integer httpStatusCode = null;
+        WebhookDeliveryAttemptErrorCode errorCode = null;
         try {
-            int status = httpClient.post(delivery, payloadFactory.create(delivery));
-            finalStatus = status >= 200 && status < 300
+            httpStatusCode = httpClient.post(delivery, payloadFactory.create(delivery));
+            finalStatus = httpStatusCode >= 200 && httpStatusCode < 300
                     ? WebhookDeliveryStatus.DELIVERED
                     : WebhookDeliveryStatus.FAILED;
+            if (finalStatus == WebhookDeliveryStatus.FAILED) {
+                errorCode = WebhookDeliveryAttemptErrorCode.HTTP_ERROR;
+            }
         } catch (Exception exception) {
+            errorCode = classify(exception);
             log.warn("Webhook delivery failed deliveryId={} eventId={} endpointId={} eventType={} error={}",
                     delivery.deliveryId(), delivery.eventId(), delivery.endpointId(), delivery.eventType(),
                     exception.getClass().getSimpleName());
         }
-        boolean finalized = claims.finalizeClaim(delivery.deliveryId(), delivery.claimToken(), finalStatus);
+        long durationMs = Math.max(0, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
+        boolean finalized = attempts.completeAttemptAndFinalize(attempt, finalStatus, httpStatusCode, errorCode, durationMs);
         if (finalized) {
             log.info("Webhook delivery finalized deliveryId={} eventId={} endpointId={} eventType={} status={} durationMs={}",
                     delivery.deliveryId(), delivery.eventId(), delivery.endpointId(), delivery.eventType(), finalStatus,
-                    java.time.Duration.between(startedAt, clock.instant()).toMillis());
+                    durationMs);
         }
+    }
+
+    private WebhookDeliveryAttemptErrorCode classify(Exception exception) {
+        if (hasCause(exception, UnsafeWebhookDestinationException.class)) return WebhookDeliveryAttemptErrorCode.SSRF_REJECTED;
+        if (hasCause(exception, UnknownHostException.class)) return WebhookDeliveryAttemptErrorCode.DNS_ERROR;
+        if (hasCause(exception, SSLHandshakeException.class)) return WebhookDeliveryAttemptErrorCode.TLS_ERROR;
+        if (hasCause(exception, SocketTimeoutException.class)) return WebhookDeliveryAttemptErrorCode.TIMEOUT;
+        if (hasCause(exception, ConnectException.class)) return WebhookDeliveryAttemptErrorCode.CONNECTION_ERROR;
+        if (hasCause(exception, java.io.IOException.class)) return WebhookDeliveryAttemptErrorCode.IO_ERROR;
+        return WebhookDeliveryAttemptErrorCode.UNEXPECTED_ERROR;
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> type) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) return true;
+        }
+        return false;
     }
 }

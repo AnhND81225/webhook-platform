@@ -60,6 +60,7 @@ class M6DeliveryWorkerIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
+        jdbcTemplate.update("DELETE FROM webhook_delivery_attempts");
         jdbcTemplate.update("DELETE FROM webhook_deliveries");
         jdbcTemplate.update("DELETE FROM webhook_events");
         jdbcTemplate.update("DELETE FROM webhook_subscriptions");
@@ -233,14 +234,22 @@ class M6DeliveryWorkerIntegrationTest {
             worker.processOnce();
             assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery))
                     .isEqualTo(code >= 200 && code < 300 ? "DELIVERED" : "FAILED");
+            assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, delivery))
+                    .isEqualTo(code >= 200 && code < 300 ? "SUCCEEDED" : "FAILED");
+            assertThat(jdbcTemplate.queryForObject("SELECT http_status_code FROM webhook_delivery_attempts WHERE delivery_id=?", Integer.class, delivery))
+                    .isEqualTo(code);
+            assertThat(jdbcTemplate.queryForObject("SELECT error_code FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, delivery))
+                    .isEqualTo(code >= 200 && code < 300 ? null : "HTTP_ERROR");
         }
         assertThat(redirects).hasValue(0);
         UUID connectionFailure = insertDelivery(application, endpoint, "connection", "http://127.0.0.1:1/hook");
         worker.processOnce();
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, connectionFailure)).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("SELECT error_code FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, connectionFailure)).isEqualTo("CONNECTION_ERROR");
         UUID timeout = insertDelivery(application, endpoint, "timeout", base + "/timeout");
         worker.processOnce();
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, timeout)).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("SELECT error_code FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, timeout)).isEqualTo("TIMEOUT");
     }
 
     @Test
@@ -274,6 +283,7 @@ class M6DeliveryWorkerIntegrationTest {
                 jdbcTemplate.update("UPDATE webhook_deliveries SET status='PENDING', processing_started_at=NULL, claim_token=NULL WHERE id=?", delivery);
                 worker.processOnce();
                 assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery)).isEqualTo("FAILED");
+                assertThat(jdbcTemplate.queryForObject("SELECT error_code FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, delivery)).isEqualTo("TLS_ERROR");
             } finally { https.stop(0); }
         } finally { Files.deleteIfExists(keyStore); }
     }
