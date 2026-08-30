@@ -52,7 +52,8 @@ import com.webhookplatform.webhook.delivery.WebhookDeliveryService;
 @SpringBootTest(properties = {
         "GOOGLE_CLIENT_ID=test-client-id",
         "GOOGLE_CLIENT_SECRET=test-client-secret",
-        "webhook-platform.frontend-url=http://localhost:5173"
+        "webhook-platform.frontend-url=http://localhost:5173",
+        "webhook-platform.worker.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -216,7 +217,7 @@ class M4EventIngestionIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO webhook_events (id, application_id, source_event_id, event_type, payload, created_at) VALUES (?, ?, 'bad', 'bad', '{}'::jsonb, CURRENT_TIMESTAMP)", UUID.randomUUID(), firstApplication))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5");
+                .containsExactly("1", "2", "3", "4", "5", "6");
     }
 
     @Test
@@ -343,7 +344,7 @@ class M4EventIngestionIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id = ?", String.class, delivery)).isEqualTo("PENDING");
         assertThatThrownBy(() -> jdbcTemplate.update("DELETE FROM webhook_events WHERE id = ?", event)).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbcTemplate.update("DELETE FROM webhook_endpoints WHERE id = ?", endpoint)).isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE webhook_deliveries SET status = 'DELIVERED' WHERE id = ?", delivery)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE webhook_deliveries SET status = 'RETRYING' WHERE id = ?", delivery)).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE webhook_deliveries SET target_url = '' WHERE id = ?", delivery)).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_webhook_deliveries_pending_created'", Long.class)).isEqualTo(1L);
     }

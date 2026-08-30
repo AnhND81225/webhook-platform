@@ -48,6 +48,13 @@ management:
 webhook-platform:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   secret-encryption-key: ${WEBHOOK_SECRET_ENCRYPTION_KEY:}
+  worker:
+    enabled: ${WEBHOOK_WORKER_ENABLED:true}
+    batch-size: ${WEBHOOK_WORKER_BATCH_SIZE:50}
+    poll-interval: ${WEBHOOK_WORKER_POLL_INTERVAL:PT5S}
+    connect-timeout: ${WEBHOOK_WORKER_CONNECT_TIMEOUT:PT3S}
+    request-timeout: ${WEBHOOK_WORKER_REQUEST_TIMEOUT:PT10S}
+    stale-processing-timeout: ${WEBHOOK_WORKER_STALE_PROCESSING_TIMEOUT:PT5M}
 
 logging:
   level:

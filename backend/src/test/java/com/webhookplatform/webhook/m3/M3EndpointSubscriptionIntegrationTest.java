@@ -45,7 +45,8 @@ import com.webhookplatform.webhook.security.AuthenticatedOidcUser;
 @SpringBootTest(properties = {
         "GOOGLE_CLIENT_ID=test-client-id",
         "GOOGLE_CLIENT_SECRET=test-client-secret",
-        "webhook-platform.frontend-url=http://localhost:5173"
+        "webhook-platform.frontend-url=http://localhost:5173",
+        "webhook-platform.worker.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -163,7 +164,7 @@ class M3EndpointSubscriptionIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5");
+                .containsExactly("1", "2", "3", "4", "5", "6");
     }
 
     private UUID insertUser(String subject) {

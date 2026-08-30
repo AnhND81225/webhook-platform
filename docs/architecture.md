@@ -251,19 +251,11 @@ Load event + endpoint
 Build canonical request body
    |
    v
-Generate HMAC signature
-   |
-   v
 POST to endpoint
    |
    v
-Persist WebhookDeliveryAttempt
-   |
-   +-- success --> DELIVERED
-   |
-   +-- retryable failure --> RETRYING
-   |
-   +-- terminal failure --> FAILED
+M6: 2xx --> DELIVERED
+non-2xx/network failure --> FAILED
 ```
 
 ---
