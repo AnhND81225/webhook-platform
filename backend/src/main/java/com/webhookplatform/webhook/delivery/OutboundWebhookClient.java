@@ -34,6 +34,7 @@ class OutboundWebhookClient {
                 .build();
         try (CloseableHttpClient client = HttpClients.custom()
                 .disableRedirectHandling()
+                .disableAutomaticRetries()
                 .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
                         .setDnsResolver(new ValidatingDnsResolver(destinationAddressPolicy, allowDevHttpLocalhost))
                         .setDefaultConnectionConfig(org.apache.hc.client5.http.config.ConnectionConfig.custom()

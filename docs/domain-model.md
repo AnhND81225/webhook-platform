@@ -315,18 +315,15 @@ Represents delivery of one event to one endpoint.
 
 If one event has three subscribed endpoints, three deliveries are created.
 
-## Suggested Fields
+## M7 Fields
 
 ```text
 id
 event_id
 endpoint_id
 status
-attempt_count
-max_attempts
-next_retry_at
-last_attempt_at
-delivered_at
+processing_started_at
+claim_token
 created_at
 updated_at
 ```
@@ -336,7 +333,6 @@ updated_at
 ```text
 PENDING
 PROCESSING
-RETRYING
 DELIVERED
 FAILED
 ```
@@ -345,9 +341,8 @@ FAILED
 
 - One delivery references exactly one event.
 - One delivery references exactly one endpoint.
-- Delivery owns the aggregate retry state.
 - Attempt history is stored separately.
-- `attempt_count` must correspond to persisted attempts.
+- Retry state is deferred beyond M7.
 
 Recommended uniqueness for initial automatic fan-out:
 
@@ -365,32 +360,24 @@ Manual retry should not create duplicate base deliveries unless a future design 
 
 Represents one physical outbound HTTP request.
 
-## Suggested Fields
+## M7 Fields
 
 ```text
 id
 delivery_id
 attempt_number
+claim_token
+status
 started_at
-finished_at
-request_headers
-request_body
-response_status
-response_headers
-response_body
-latency_ms
-error_type
-error_message
-created_at
+completed_at
+duration_ms
+http_status_code
+error_code
 ```
 
 ## Notes
 
-Request and response data must be safely stored.
-
-Do not store raw secrets or authorization credentials.
-
-Payload size limits should be enforced.
+M7 keeps only outcome metadata. It does not duplicate the event payload, endpoint URL, request/response headers, response body, or error message. `claim_token` binds an attempt to the worker claim that created it; stale in-progress attempts become `ABANDONED` during claim recovery.
 
 ## Example
 

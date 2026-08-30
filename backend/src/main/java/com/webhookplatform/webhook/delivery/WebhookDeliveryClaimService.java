@@ -63,11 +63,27 @@ class WebhookDeliveryClaimService {
     @Transactional
     public int recoverStaleProcessing() {
         Instant now = clock.instant();
-        return jdbcTemplate.update("""
-                UPDATE webhook_deliveries
-                SET status = 'PENDING', processing_started_at = NULL, claim_token = NULL, updated_at = ?
+        List<StaleClaim> staleClaims = jdbcTemplate.query("""
+                SELECT id, claim_token
+                FROM webhook_deliveries
                 WHERE status = 'PROCESSING' AND processing_started_at < ?
-                """, timestamp(now), timestamp(now.minus(properties.staleProcessingTimeout())));
+                FOR UPDATE
+                """, (resultSet, rowNum) -> new StaleClaim(
+                        resultSet.getObject("id", UUID.class), resultSet.getObject("claim_token", UUID.class)),
+                timestamp(now.minus(properties.staleProcessingTimeout())));
+        for (StaleClaim stale : staleClaims) {
+            jdbcTemplate.update("""
+                    UPDATE webhook_delivery_attempts
+                    SET status = 'ABANDONED', completed_at = ?
+                    WHERE delivery_id = ? AND claim_token = ? AND status = 'IN_PROGRESS'
+                    """, timestamp(now), stale.deliveryId(), stale.claimToken());
+            jdbcTemplate.update("""
+                    UPDATE webhook_deliveries
+                    SET status = 'PENDING', processing_started_at = NULL, claim_token = NULL, updated_at = ?
+                    WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
+                    """, timestamp(now), stale.deliveryId(), stale.claimToken());
+        }
+        return staleClaims.size();
     }
 
     @Transactional
@@ -84,5 +100,8 @@ class WebhookDeliveryClaimService {
 
     private OffsetDateTime timestamp(Instant instant) {
         return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
+    }
+
+    private record StaleClaim(UUID deliveryId, UUID claimToken) {
     }
 }

@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V6 own the M1–M6 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V7 own the M1–M7 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
