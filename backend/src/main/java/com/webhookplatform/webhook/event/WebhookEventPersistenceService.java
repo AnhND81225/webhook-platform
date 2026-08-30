@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.webhookplatform.webhook.application.Application;
 import com.webhookplatform.webhook.application.ApplicationRepository;
 import com.webhookplatform.webhook.security.ProducerPrincipal;
+import com.webhookplatform.webhook.delivery.WebhookDeliveryService;
 
 @Service
 class WebhookEventPersistenceService {
@@ -19,16 +20,18 @@ class WebhookEventPersistenceService {
     private final ApplicationRepository applicationRepository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final WebhookDeliveryService deliveryService;
 
     WebhookEventPersistenceService(
             WebhookEventRepository eventRepository,
             ApplicationRepository applicationRepository,
             ObjectMapper objectMapper,
-            Clock clock) {
+            Clock clock, WebhookDeliveryService deliveryService) {
         this.eventRepository = eventRepository;
         this.applicationRepository = applicationRepository;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.deliveryService = deliveryService;
     }
 
     @Transactional
@@ -46,7 +49,9 @@ class WebhookEventPersistenceService {
                 request.eventType(),
                 request.payload(),
                 clock.instant());
-        return new PersistedEvent(eventRepository.saveAndFlush(event), true);
+        WebhookEvent persisted = eventRepository.saveAndFlush(event);
+        deliveryService.createFor(persisted);
+        return new PersistedEvent(persisted, true);
     }
 
     @Transactional(readOnly = true)
