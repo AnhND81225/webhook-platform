@@ -376,11 +376,11 @@ class M2ApplicationApiKeyIntegrationTest {
     }
 
     @Test
-    void flywayAppliedThroughV7AndHibernateValidatedSchema() {
+    void flywayAppliedThroughV8AndHibernateValidatedSchema() {
         assertThat(jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                 String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM applications", Long.class)).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM api_keys", Long.class)).isZero();
     }

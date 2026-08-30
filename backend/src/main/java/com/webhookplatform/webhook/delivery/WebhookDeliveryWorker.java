@@ -57,15 +57,13 @@ class WebhookDeliveryWorker {
             return;
         }
         long startedNanos = System.nanoTime();
-        WebhookDeliveryStatus finalStatus = WebhookDeliveryStatus.FAILED;
+        boolean successful = false;
         Integer httpStatusCode = null;
         WebhookDeliveryAttemptErrorCode errorCode = null;
         try {
             httpStatusCode = httpClient.post(delivery, payloadFactory.create(delivery));
-            finalStatus = httpStatusCode >= 200 && httpStatusCode < 300
-                    ? WebhookDeliveryStatus.DELIVERED
-                    : WebhookDeliveryStatus.FAILED;
-            if (finalStatus == WebhookDeliveryStatus.FAILED) {
+            successful = httpStatusCode >= 200 && httpStatusCode < 300;
+            if (!successful) {
                 errorCode = WebhookDeliveryAttemptErrorCode.HTTP_ERROR;
             }
         } catch (Exception exception) {
@@ -75,10 +73,10 @@ class WebhookDeliveryWorker {
                     exception.getClass().getSimpleName());
         }
         long durationMs = Math.max(0, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
-        boolean finalized = attempts.completeAttemptAndFinalize(attempt, finalStatus, httpStatusCode, errorCode, durationMs);
+        boolean finalized = attempts.completeAttemptAndResolve(attempt, successful, httpStatusCode, errorCode, durationMs);
         if (finalized) {
-            log.info("Webhook delivery finalized deliveryId={} eventId={} endpointId={} eventType={} status={} durationMs={}",
-                    delivery.deliveryId(), delivery.eventId(), delivery.endpointId(), delivery.eventType(), finalStatus,
+            log.info("Webhook delivery completed deliveryId={} eventId={} endpointId={} eventType={} success={} durationMs={}",
+                    delivery.deliveryId(), delivery.eventId(), delivery.endpointId(), delivery.eventType(), successful,
                     durationMs);
         }
     }

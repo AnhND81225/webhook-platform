@@ -72,10 +72,9 @@ Test allowed transitions:
 ```text
 PENDING -> PROCESSING
 PROCESSING -> DELIVERED
-PROCESSING -> RETRYING
+PROCESSING -> RETRY_SCHEDULED
 PROCESSING -> FAILED
-RETRYING -> PROCESSING
-FAILED -> PENDING via manual retry
+RETRY_SCHEDULED -> PROCESSING
 ```
 
 Invalid transitions should be rejected or prevented.
@@ -232,7 +231,7 @@ Expected:
 
 ```text
 attempt records timeout
-delivery RETRYING or FAILED according to budget
+delivery RETRY_SCHEDULED or FAILED according to budget
 ```
 
 ---

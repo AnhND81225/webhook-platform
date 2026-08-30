@@ -315,7 +315,7 @@ Represents delivery of one event to one endpoint.
 
 If one event has three subscribed endpoints, three deliveries are created.
 
-## M7 Fields
+## M8 Fields
 
 ```text
 id
@@ -324,6 +324,7 @@ endpoint_id
 status
 processing_started_at
 claim_token
+next_retry_at
 created_at
 updated_at
 ```
@@ -333,6 +334,7 @@ updated_at
 ```text
 PENDING
 PROCESSING
+RETRY_SCHEDULED
 DELIVERED
 FAILED
 ```
@@ -342,7 +344,8 @@ FAILED
 - One delivery references exactly one event.
 - One delivery references exactly one endpoint.
 - Attempt history is stored separately.
-- Retry state is deferred beyond M7.
+- `RETRY_SCHEDULED` is durable deferred work; `next_retry_at` is required only in that state.
+- M8 uses immutable attempt history as the source of truth for the five-attempt budget; it adds no separate retry counter.
 
 Recommended uniqueness for initial automatic fan-out:
 
@@ -481,7 +484,7 @@ No.
 
 ## Can a failed delivery later become delivered?
 
-Yes, if an explicit manual retry is allowed and succeeds.
+Yes, while a retryable failure is `RETRY_SCHEDULED` and a later attempt succeeds. Terminal `FAILED` is not manually retried in M8.
 
 Attempt history must remain intact.
 

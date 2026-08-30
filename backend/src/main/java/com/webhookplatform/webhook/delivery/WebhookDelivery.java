@@ -14,6 +14,7 @@ public class WebhookDelivery {
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "endpoint_id", nullable = false, updatable = false) private WebhookEndpoint endpoint;
     @Column(name = "target_url", nullable = false, length = 2048, updatable = false) private String targetUrl;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16) private WebhookDeliveryStatus status;
+    @Column(name = "next_retry_at") private Instant nextRetryAt;
     @Column(name = "created_at", nullable = false, updatable = false) private Instant createdAt;
     @Column(name = "updated_at", nullable = false) private Instant updatedAt;
     protected WebhookDelivery() {}
@@ -28,6 +29,7 @@ public class WebhookDelivery {
     public WebhookEndpoint getEndpoint() { return endpoint; }
     public String getTargetUrl() { return targetUrl; }
     public WebhookDeliveryStatus getStatus() { return status; }
+    public Instant getNextRetryAt() { return nextRetryAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -18,10 +18,12 @@ class WebhookDeliveryAttemptService {
 
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
+    private final WebhookRetryPolicy retryPolicy;
 
-    WebhookDeliveryAttemptService(JdbcTemplate jdbcTemplate, Clock clock) {
+    WebhookDeliveryAttemptService(JdbcTemplate jdbcTemplate, Clock clock, WebhookRetryPolicy retryPolicy) {
         this.jdbcTemplate = jdbcTemplate;
         this.clock = clock;
+        this.retryPolicy = retryPolicy;
     }
 
     @Transactional
@@ -82,6 +84,47 @@ class WebhookDeliveryAttemptService {
                 SET status = ?, processing_started_at = NULL, claim_token = NULL, updated_at = ?
                 WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
                 """, deliveryStatus.name(), timestamp(now), attempt.deliveryId(), attempt.claimToken());
+        if (finalized != 1) {
+            throw new IllegalStateException("Claim-owned delivery was not available for finalization.");
+        }
+        return true;
+    }
+
+    @Transactional
+    boolean completeAttemptAndResolve(StartedWebhookDeliveryAttempt attempt, boolean successful,
+            Integer httpStatusCode, WebhookDeliveryAttemptErrorCode errorCode, long durationMs) {
+        try {
+            jdbcTemplate.queryForObject("""
+                    SELECT id FROM webhook_deliveries
+                    WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
+                    FOR UPDATE
+                    """, UUID.class, attempt.deliveryId(), attempt.claimToken());
+        } catch (EmptyResultDataAccessException exception) {
+            return false;
+        }
+
+        Instant now = clock.instant();
+        WebhookRetryDecision decision = successful ? WebhookRetryDecision.terminal()
+                : retryPolicy.forFailure(attempt.attemptNumber(), httpStatusCode, errorCode);
+        WebhookDeliveryStatus deliveryStatus = successful ? WebhookDeliveryStatus.DELIVERED
+                : decision.shouldRetry() ? WebhookDeliveryStatus.RETRY_SCHEDULED : WebhookDeliveryStatus.FAILED;
+        WebhookDeliveryAttemptStatus attemptStatus = successful ? WebhookDeliveryAttemptStatus.SUCCEEDED
+                : WebhookDeliveryAttemptStatus.FAILED;
+        int completed = jdbcTemplate.update("""
+                UPDATE webhook_delivery_attempts
+                SET status = ?, completed_at = ?, duration_ms = ?, http_status_code = ?, error_code = ?
+                WHERE id = ? AND delivery_id = ? AND claim_token = ? AND status = 'IN_PROGRESS'
+                """, attemptStatus.name(), timestamp(now), Math.max(0, durationMs), httpStatusCode,
+                errorCode == null ? null : errorCode.name(), attempt.attemptId(), attempt.deliveryId(), attempt.claimToken());
+        if (completed != 1) {
+            throw new IllegalStateException("Claim-owned delivery attempt was not available for completion.");
+        }
+        int finalized = jdbcTemplate.update("""
+                UPDATE webhook_deliveries
+                SET status = ?, processing_started_at = NULL, claim_token = NULL, next_retry_at = ?, updated_at = ?
+                WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
+                """, deliveryStatus.name(), decision.shouldRetry() ? timestamp(now.plus(decision.delay())) : null,
+                timestamp(now), attempt.deliveryId(), attempt.claimToken());
         if (finalized != 1) {
             throw new IllegalStateException("Claim-owned delivery was not available for finalization.");
         }

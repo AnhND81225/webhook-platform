@@ -233,7 +233,7 @@ class M6DeliveryWorkerIntegrationTest {
             UUID delivery = insertDelivery(application, endpoint, "status-" + code, base + "/hook");
             worker.processOnce();
             assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery))
-                    .isEqualTo(code >= 200 && code < 300 ? "DELIVERED" : "FAILED");
+                    .isEqualTo(code >= 200 && code < 300 ? "DELIVERED" : code == 500 ? "RETRY_SCHEDULED" : "FAILED");
             assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, delivery))
                     .isEqualTo(code >= 200 && code < 300 ? "SUCCEEDED" : "FAILED");
             assertThat(jdbcTemplate.queryForObject("SELECT http_status_code FROM webhook_delivery_attempts WHERE delivery_id=?", Integer.class, delivery))
@@ -244,11 +244,11 @@ class M6DeliveryWorkerIntegrationTest {
         assertThat(redirects).hasValue(0);
         UUID connectionFailure = insertDelivery(application, endpoint, "connection", "http://127.0.0.1:1/hook");
         worker.processOnce();
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, connectionFailure)).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, connectionFailure)).isEqualTo("RETRY_SCHEDULED");
         assertThat(jdbcTemplate.queryForObject("SELECT error_code FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, connectionFailure)).isEqualTo("CONNECTION_ERROR");
         UUID timeout = insertDelivery(application, endpoint, "timeout", base + "/timeout");
         worker.processOnce();
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, timeout)).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, timeout)).isEqualTo("RETRY_SCHEDULED");
         assertThat(jdbcTemplate.queryForObject("SELECT error_code FROM webhook_delivery_attempts WHERE delivery_id=?", String.class, timeout)).isEqualTo("TIMEOUT");
     }
 
