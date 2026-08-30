@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations `V1__create_users.sql`, `V2__create_applications_and_api_keys.sql`, `V3__create_webhook_endpoints_and_subscriptions.sql`, and `V4__create_webhook_events.sql` own the M1–M4 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V5 own the M1–M5 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -151,6 +151,6 @@ Production uses the same image with its RDS URL and credentials supplied through
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
-M4 does not create deliveries, select subscriptions, call endpoints, implement workers, retries, HMAC signing, signing-secret storage, API-key expiration/rotation, dashboard event UI, or AI Study Assistant integration. M5 will create `WebhookDelivery` rows from persisted events and subscriptions. DNS, redirect, and resolved-IP SSRF protection remain a delivery-time concern for outbound delivery.
+M5 creates immutable `PENDING` delivery responsibilities for active, matching subscriptions atomically with new event ingestion. Each delivery snapshots its target URL; endpoint and subscription changes affect future fan-out only. M5 does not send HTTP requests, implement workers, retries, HMAC signing, dashboard delivery UI, or AI Study Assistant integration.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.
