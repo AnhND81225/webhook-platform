@@ -1,12 +1,12 @@
 # Webhook Delivery Platform
 
-Current milestone: **M6 — Delivery Worker / Outbound HTTP Delivery**
+Current milestone: **M7 — Webhook Delivery Attempt Logging**
 
-This standalone platform receives immutable domain events from authenticated producer applications and will reliably deliver them to subscribed HTTP webhook endpoints. M4 adds producer API-key authentication and idempotent event persistence on top of the M3 endpoint/subscription foundation. Delivery creation and outbound delivery remain later milestones.
+This standalone platform receives immutable domain events from authenticated producer applications, creates durable delivery responsibilities for matching subscriptions, and delivers them to configured HTTP webhook endpoints. M7 adds durable metadata-only history for each physical outbound delivery attempt.
 
 ## Architecture and technology
 
-The MVP is a modular monolith: a React dashboard calls a Spring Boot backend, which persists durable state in PostgreSQL. A PostgreSQL-backed worker will be added in a later milestone. Production uses Vercel for the frontend and Nginx in front of a Dockerized backend on AWS EC2, connected to AWS RDS for PostgreSQL. Authenticated production deployments require related custom domains such as `webhook.<domain>` and `api.webhook.<domain>`.
+The MVP is a modular monolith: a React dashboard calls a Spring Boot backend, which persists durable state in PostgreSQL. A PostgreSQL-backed worker claims and processes pending deliveries. Production uses Vercel for the frontend and Nginx in front of a Dockerized backend on AWS EC2, connected to AWS RDS for PostgreSQL. Authenticated production deployments require related custom domains such as `webhook.<domain>` and `api.webhook.<domain>`.
 
 - Backend: Java 17, Spring Boot 3.5, Maven, Spring Web, Validation, Data JPA, Security, OAuth2 Client, Actuator, PostgreSQL, Flyway
 - Frontend: React, TypeScript, Vite, React Router
@@ -59,7 +59,7 @@ Copy `.env.example` to a local `.env` and provide values as needed. Local defaul
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret; required to start the backend |
 | `FRONTEND_URL` | Exact canonical dashboard origin and trusted post-login target; production uses `https://webhook.<domain>` |
 | `SESSION_TIMEOUT` | Backend session idle timeout; defaults to `30m` |
-| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M4 |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M7 |
 | `SPRING_PROFILES_ACTIVE` | Use `dev` locally or `prod` in production |
 | `VITE_API_BASE_URL` | Frontend backend base URL; defaults to `http://localhost:8080` |
 
@@ -115,7 +115,7 @@ Create a production build with `npm run build`. Run authentication UI tests with
 Build the backend image:
 
 ```bash
-docker build -t webhook-platform-backend:m4 backend
+docker build -t webhook-platform-backend:m7 backend
 ```
 
 For a local image smoke test, run it against the local PostgreSQL instance:
@@ -129,7 +129,7 @@ docker run --rm -p 8080:8080 \
   -e GOOGLE_CLIENT_ID=local-client-id \
   -e GOOGLE_CLIENT_SECRET=local-client-secret \
   -e FRONTEND_URL=http://localhost:5173 \
-  webhook-platform-backend:m4
+  webhook-platform-backend:m7
 ```
 
 Production uses the same image with its RDS URL and credentials supplied through protected EC2 runtime configuration. Secrets are never baked into the image.
@@ -147,10 +147,12 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M4 status and MVP scope
+## M1–M7 status and MVP scope
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
-M6 claims `PENDING` deliveries with PostgreSQL `FOR UPDATE SKIP LOCKED`, performs one bounded outbound HTTP POST outside the claim transaction, and transitions them to `DELIVERED` for 2xx or `FAILED` otherwise. It validates runtime DNS/IP destinations, disables redirects, and recovers stale `PROCESSING` claims. Delivery remains at-least-once: a crash after a consumer receives a request but before `DELIVERED` is stored can produce a later duplicate. Retry, attempt history, and HMAC signing remain later milestones.
+M5 creates one durable `PENDING` delivery per matching active subscription and snapshots the endpoint URL. M6 claims `PENDING` deliveries with PostgreSQL `FOR UPDATE SKIP LOCKED`, performs one bounded outbound HTTP POST outside the claim transaction, and transitions them to `DELIVERED` for 2xx or `FAILED` otherwise. It validates runtime DNS/IP destinations, disables redirects and automatic HTTP retries, and recovers stale `PROCESSING` claims.
+
+M7 records one claim-token-bound attempt before each outbound request. Attempt history stores only status, timestamps, monotonic duration, HTTP status, and a controlled error code—never request payloads, endpoint URLs, headers, response bodies, or arbitrary exception messages. A stale claim marks its unfinished attempt `ABANDONED` before delivery is made eligible again. Delivery remains at-least-once: a consumer may have received an abandoned attempt, so a later worker can send a duplicate. Retry/backoff, HMAC signing, delivery APIs/UI, queues, and outbox processing remain future milestones.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.
