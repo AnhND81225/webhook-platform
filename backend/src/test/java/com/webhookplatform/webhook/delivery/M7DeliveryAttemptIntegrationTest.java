@@ -98,7 +98,7 @@ class M7DeliveryAttemptIntegrationTest {
         worker.processOnce();
 
         assertAttempt(failedDelivery, "FAILED", 503, "HTTP_ERROR");
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, failedDelivery)).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, failedDelivery)).isEqualTo("RETRY_SCHEDULED");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='webhook_delivery_attempts' AND column_name IN ('response_body', 'payload', 'target_url')", Long.class)).isZero();
     }
 
@@ -119,7 +119,7 @@ class M7DeliveryAttemptIntegrationTest {
         worker.processOnce();
 
         assertThat(requestCount).hasValue(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery)).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery)).isEqualTo("RETRY_SCHEDULED");
         assertAttempt(delivery, "FAILED", 429, "HTTP_ERROR");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM webhook_delivery_attempts WHERE delivery_id=?", Long.class, delivery)).isEqualTo(1L);
     }
@@ -159,7 +159,8 @@ class M7DeliveryAttemptIntegrationTest {
 
         assertThat(claims.recoverStaleProcessing()).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_delivery_attempts WHERE id=?", String.class, firstAttempt.attemptId())).isEqualTo("ABANDONED");
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery)).isEqualTo("PENDING");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE id=?", String.class, delivery)).isEqualTo("RETRY_SCHEDULED");
+        jdbcTemplate.update("UPDATE webhook_deliveries SET next_retry_at=CURRENT_TIMESTAMP WHERE id=?", delivery);
 
         ClaimedDelivery secondClaim = claims.claimPending(1).get(0);
         StartedWebhookDeliveryAttempt secondAttempt = attempts.startAttempt(secondClaim).orElseThrow();
@@ -226,7 +227,7 @@ class M7DeliveryAttemptIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO webhook_delivery_attempts (id, delivery_id, attempt_number, claim_token, status, started_at) VALUES (?, ?, 2, ?, 'UNKNOWN', CURRENT_TIMESTAMP)", UUID.randomUUID(), delivery, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname='idx_webhook_delivery_attempts_delivery_history'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname='idx_webhook_delivery_attempts_in_progress_claim'", Long.class)).isEqualTo(1L);
     }

@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,11 +18,14 @@ class WebhookDeliveryClaimService {
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
     private final WebhookWorkerProperties properties;
+    private final WebhookRetryPolicy retryPolicy;
 
-    WebhookDeliveryClaimService(JdbcTemplate jdbcTemplate, Clock clock, WebhookWorkerProperties properties) {
+    WebhookDeliveryClaimService(JdbcTemplate jdbcTemplate, Clock clock, WebhookWorkerProperties properties,
+            WebhookRetryPolicy retryPolicy) {
         this.jdbcTemplate = jdbcTemplate;
         this.clock = clock;
         this.properties = properties;
+        this.retryPolicy = retryPolicy;
     }
 
     @Transactional
@@ -33,12 +37,13 @@ class WebhookDeliveryClaimService {
                     SELECT id
                     FROM webhook_deliveries
                     WHERE status = 'PENDING'
-                    ORDER BY created_at, id
+                       OR (status = 'RETRY_SCHEDULED' AND next_retry_at <= ?)
+                    ORDER BY COALESCE(next_retry_at, created_at), id
                     FOR UPDATE SKIP LOCKED
                     LIMIT ?
                 ), claimed AS (
                     UPDATE webhook_deliveries d
-                    SET status = 'PROCESSING', processing_started_at = ?, claim_token = ?, updated_at = ?
+                    SET status = 'PROCESSING', processing_started_at = ?, claim_token = ?, next_retry_at = NULL, updated_at = ?
                     FROM candidates c
                     WHERE d.id = c.id
                     RETURNING d.id, d.event_id, d.endpoint_id, d.target_url, d.claim_token
@@ -57,7 +62,7 @@ class WebhookDeliveryClaimService {
                         resultSet.getString(6),
                         resultSet.getString(7),
                         resultSet.getObject(8, OffsetDateTime.class).toInstant(),
-                        resultSet.getString(9)), batchSize, timestamp(now), claimToken, timestamp(now));
+                        resultSet.getString(9)), timestamp(now), batchSize, timestamp(now), claimToken, timestamp(now));
     }
 
     @Transactional
@@ -72,16 +77,34 @@ class WebhookDeliveryClaimService {
                         resultSet.getObject("id", UUID.class), resultSet.getObject("claim_token", UUID.class)),
                 timestamp(now.minus(properties.staleProcessingTimeout())));
         for (StaleClaim stale : staleClaims) {
-            jdbcTemplate.update("""
+            Optional<Integer> inProgressAttempt = jdbcTemplate.query("""
+                    SELECT attempt_number
+                    FROM webhook_delivery_attempts
+                    WHERE delivery_id = ? AND claim_token = ? AND status = 'IN_PROGRESS'
+                    FOR UPDATE
+                    """, resultSet -> resultSet.next() ? Optional.of(resultSet.getInt(1)) : Optional.empty(),
+                    stale.deliveryId(), stale.claimToken());
+            if (inProgressAttempt.isPresent()) {
+                int attemptNumber = inProgressAttempt.orElseThrow();
+                jdbcTemplate.update("""
                     UPDATE webhook_delivery_attempts
                     SET status = 'ABANDONED', completed_at = ?
                     WHERE delivery_id = ? AND claim_token = ? AND status = 'IN_PROGRESS'
                     """, timestamp(now), stale.deliveryId(), stale.claimToken());
-            jdbcTemplate.update("""
+                WebhookRetryDecision decision = retryPolicy.forAbandonedAttempt(attemptNumber);
+                jdbcTemplate.update("""
                     UPDATE webhook_deliveries
-                    SET status = 'PENDING', processing_started_at = NULL, claim_token = NULL, updated_at = ?
+                    SET status = ?, processing_started_at = NULL, claim_token = NULL, next_retry_at = ?, updated_at = ?
                     WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
-                    """, timestamp(now), stale.deliveryId(), stale.claimToken());
+                    """, decision.shouldRetry() ? WebhookDeliveryStatus.RETRY_SCHEDULED.name() : WebhookDeliveryStatus.FAILED.name(),
+                        decision.shouldRetry() ? timestamp(now.plus(decision.delay())) : null, timestamp(now), stale.deliveryId(), stale.claimToken());
+            } else {
+                jdbcTemplate.update("""
+                        UPDATE webhook_deliveries
+                        SET status = 'PENDING', processing_started_at = NULL, claim_token = NULL, next_retry_at = NULL, updated_at = ?
+                        WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
+                        """, timestamp(now), stale.deliveryId(), stale.claimToken());
+            }
         }
         return staleClaims.size();
     }

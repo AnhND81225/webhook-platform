@@ -254,8 +254,9 @@ Build canonical request body
 POST to endpoint
    |
    v
-M6: 2xx --> DELIVERED
-non-2xx/network failure --> FAILED
+2xx --> DELIVERED
+retryable failure --> RETRY_SCHEDULED in PostgreSQL
+terminal failure / exhausted budget --> FAILED
 ```
 
 ---
@@ -271,7 +272,7 @@ status = PENDING
 
 or
 
-status = RETRYING
+status = RETRY_SCHEDULED
 AND next_retry_at <= now
 ```
 
@@ -349,15 +350,15 @@ Crash scenarios may still produce duplicate outbound requests due to at-least-on
 
 ```text
 attempt stored
-delivery -> RETRYING
-next_retry_at assigned
+delivery -> RETRY_SCHEDULED
+next_retry_at assigned from the M8 policy
 ```
 
 ## Consumer Times Out
 
 ```text
 attempt stored with timeout error
-delivery -> RETRYING
+delivery -> RETRY_SCHEDULED when attempt budget remains
 ```
 
 The consumer may already have processed the request.

@@ -1,6 +1,6 @@
 # Webhook Delivery Platform
 
-Current milestone: **M7 — Webhook Delivery Attempt Logging**
+Current milestone: **M8 — Retry Engine**
 
 This standalone platform receives immutable domain events from authenticated producer applications, creates durable delivery responsibilities for matching subscriptions, and delivers them to configured HTTP webhook endpoints. M7 adds durable metadata-only history for each physical outbound delivery attempt.
 
@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V7 own the M1–M7 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V8 own the M1–M8 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -115,7 +115,7 @@ Create a production build with `npm run build`. Run authentication UI tests with
 Build the backend image:
 
 ```bash
-docker build -t webhook-platform-backend:m7 backend
+docker build -t webhook-platform-backend:m8 backend
 ```
 
 For a local image smoke test, run it against the local PostgreSQL instance:
@@ -129,7 +129,7 @@ docker run --rm -p 8080:8080 \
   -e GOOGLE_CLIENT_ID=local-client-id \
   -e GOOGLE_CLIENT_SECRET=local-client-secret \
   -e FRONTEND_URL=http://localhost:5173 \
-  webhook-platform-backend:m7
+  webhook-platform-backend:m8
 ```
 
 Production uses the same image with its RDS URL and credentials supplied through protected EC2 runtime configuration. Secrets are never baked into the image.
@@ -147,12 +147,14 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M1–M7 status and MVP scope
+## M1–M8 status and MVP scope
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
 M5 creates one durable `PENDING` delivery per matching active subscription and snapshots the endpoint URL. M6 claims `PENDING` deliveries with PostgreSQL `FOR UPDATE SKIP LOCKED`, performs one bounded outbound HTTP POST outside the claim transaction, and transitions them to `DELIVERED` for 2xx or `FAILED` otherwise. It validates runtime DNS/IP destinations, disables redirects and automatic HTTP retries, and recovers stale `PROCESSING` claims.
 
-M7 records one claim-token-bound attempt before each outbound request. Attempt history stores only status, timestamps, monotonic duration, HTTP status, and a controlled error code—never request payloads, endpoint URLs, headers, response bodies, or arbitrary exception messages. A stale claim marks its unfinished attempt `ABANDONED` before delivery is made eligible again. Delivery remains at-least-once: a consumer may have received an abandoned attempt, so a later worker can send a duplicate. Retry/backoff, HMAC signing, delivery APIs/UI, queues, and outbox processing remain future milestones.
+M7 records one claim-token-bound attempt before each outbound request. Attempt history stores only status, timestamps, monotonic duration, HTTP status, and a controlled error code—never request payloads, endpoint URLs, headers, response bodies, or arbitrary exception messages.
+
+M8 adds PostgreSQL-backed `RETRY_SCHEDULED` delivery state with `next_retry_at`. The default policy permits at most five total attempts with delays of 10 seconds, 30 seconds, 2 minutes, and 10 minutes. Only HTTP 408, 429, and 5xx responses plus DNS, connection, and timeout failures retry; TLS and SSRF rejections are terminal. `Retry-After` is not parsed. An `ABANDONED` attempt counts because it may have reached the consumer, while a stale claim with no created attempt returns directly to `PENDING`. Delivery remains at-least-once. HMAC signing, delivery APIs/UI, queues, and outbox processing remain future milestones.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.
