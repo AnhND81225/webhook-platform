@@ -210,7 +210,7 @@ Production-oriented design should consider blocking:
 
 Development mode may need controlled exceptions for localhost mock consumers.
 
-M3 performs configuration-time validation only. Delivery-time DNS resolution, redirect validation, and resolved-IP SSRF protection remain required when outbound webhook delivery is introduced.
+M3 performs configuration-time validation only. M6 adds delivery-time validation through a DNS resolver used by the outbound HTTP client itself: every resolved address is checked and any unsafe result rejects the destination. Automatic redirects are disabled, so a redirect cannot bypass validation. TLS certificate and hostname verification remain enabled. Only the local `dev` profile may use controlled localhost/127.0.0.1 targets; Application environment never weakens this boundary.
 
 ---
 

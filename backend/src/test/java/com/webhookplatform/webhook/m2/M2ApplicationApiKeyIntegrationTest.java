@@ -59,7 +59,8 @@ import com.webhookplatform.webhook.security.AuthenticatedOidcUser;
 @SpringBootTest(properties = {
         "GOOGLE_CLIENT_ID=test-client-id",
         "GOOGLE_CLIENT_SECRET=test-client-secret",
-        "webhook-platform.frontend-url=http://localhost:5173"
+        "webhook-platform.frontend-url=http://localhost:5173",
+        "webhook-platform.worker.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -379,7 +380,7 @@ class M2ApplicationApiKeyIntegrationTest {
         assertThat(jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                 String.class))
-                .containsExactly("1", "2", "3", "4", "5");
+                .containsExactly("1", "2", "3", "4", "5", "6");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM applications", Long.class)).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM api_keys", Long.class)).isZero();
     }

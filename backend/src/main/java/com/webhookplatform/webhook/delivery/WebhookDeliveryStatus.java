@@ -1,5 +1,8 @@
 package com.webhookplatform.webhook.delivery;
 
 public enum WebhookDeliveryStatus {
-    PENDING
+    PENDING,
+    PROCESSING,
+    DELIVERED,
+    FAILED
 }

@@ -1,6 +1,6 @@
 # Webhook Delivery Platform
 
-Current milestone: **M4 — Event Ingestion + Producer API Key Authentication**
+Current milestone: **M6 — Delivery Worker / Outbound HTTP Delivery**
 
 This standalone platform receives immutable domain events from authenticated producer applications and will reliably deliver them to subscribed HTTP webhook endpoints. M4 adds producer API-key authentication and idempotent event persistence on top of the M3 endpoint/subscription foundation. Delivery creation and outbound delivery remain later milestones.
 
@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V5 own the M1–M5 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V6 own the M1–M6 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -151,6 +151,6 @@ Production uses the same image with its RDS URL and credentials supplied through
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
-M5 creates immutable `PENDING` delivery responsibilities for active, matching subscriptions atomically with new event ingestion. Each delivery snapshots its target URL; endpoint and subscription changes affect future fan-out only. M5 does not send HTTP requests, implement workers, retries, HMAC signing, dashboard delivery UI, or AI Study Assistant integration.
+M6 claims `PENDING` deliveries with PostgreSQL `FOR UPDATE SKIP LOCKED`, performs one bounded outbound HTTP POST outside the claim transaction, and transitions them to `DELIVERED` for 2xx or `FAILED` otherwise. It validates runtime DNS/IP destinations, disables redirects, and recovers stale `PROCESSING` claims. Delivery remains at-least-once: a crash after a consumer receives a request but before `DELIVERED` is stored can produce a later duplicate. Retry, attempt history, and HMAC signing remain later milestones.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.

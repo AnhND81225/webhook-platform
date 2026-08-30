@@ -58,7 +58,8 @@ import com.webhookplatform.webhook.user.UserRepository;
 @SpringBootTest(properties = {
         "GOOGLE_CLIENT_ID=test-client-id",
         "GOOGLE_CLIENT_SECRET=test-client-secret",
-        "webhook-platform.frontend-url=http://localhost:5173"
+        "webhook-platform.frontend-url=http://localhost:5173",
+        "webhook-platform.worker.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers
