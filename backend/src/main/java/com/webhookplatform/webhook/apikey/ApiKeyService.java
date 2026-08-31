@@ -1,6 +1,7 @@
 package com.webhookplatform.webhook.apikey;
 
 import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,7 +57,7 @@ public class ApiKeyService {
     public ApiKeyMetadataResponse revoke(UUID apiKeyId, UUID ownerUserId) {
         ApiKey apiKey = apiKeyRepository.findByIdAndApplicationOwnerUserId(apiKeyId, ownerUserId)
                 .orElseThrow(ApiKeyNotFoundException::new);
-        apiKey.revoke(clock.instant());
+        apiKey.revoke(clock.instant().truncatedTo(ChronoUnit.MICROS));
         return ApiKeyMetadataResponse.from(apiKey);
     }
 }

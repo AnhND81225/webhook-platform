@@ -2,6 +2,7 @@ package com.webhookplatform.webhook.signature;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
@@ -39,7 +40,7 @@ class WebhookSecretEncryptionService {
             cipher.init(Cipher.DECRYPT_MODE, masterKey(), new GCMParameterSpec(128, nonce));
             cipher.updateAAD(aad(endpointId, keyVersion));
             return cipher.doFinal(ciphertext);
-        } catch (GeneralSecurityException exception) {
+        } catch (GeneralSecurityException | ProviderException exception) {
             throw new SigningException("Could not decrypt webhook signing secret.", exception);
         }
     }
