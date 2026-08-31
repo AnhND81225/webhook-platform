@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpServer;
+import com.webhookplatform.webhook.signature.WebhookSigningSecretService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,7 @@ class M8RetryIntegrationTest {
     @Autowired private MutableClock clock;
     @Autowired private EntityManager entityManager;
     @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private WebhookSigningSecretService signingSecrets;
     @SpyBean private OutboundWebhookClient outboundWebhookClient;
     private HttpServer server;
 
@@ -68,6 +70,7 @@ class M8RetryIntegrationTest {
     void cleanDatabase() {
         clock.set(Instant.parse("2030-01-01T00:00:00Z"));
         jdbcTemplate.update("DELETE FROM webhook_delivery_attempts");
+        jdbcTemplate.update("DELETE FROM webhook_signing_secrets");
         jdbcTemplate.update("DELETE FROM webhook_deliveries");
         jdbcTemplate.update("DELETE FROM webhook_events");
         jdbcTemplate.update("DELETE FROM webhook_subscriptions");
@@ -193,7 +196,7 @@ class M8RetryIntegrationTest {
     @Test
     void workerSchedulesDeterministicDnsFailureWithoutExternalResolution() throws Exception {
         doThrow(new java.net.UnknownHostException("test-only-dns-failure"))
-                .when(outboundWebhookClient).post(any(ClaimedDelivery.class), any(String.class));
+                .when(outboundWebhookClient).post(any(ClaimedDelivery.class), any(byte[].class));
         UUID application = insertApplication();
         UUID delivery = insertDelivery(application, insertEndpoint(application), "dns", "https://public.example.test/dns");
 
@@ -301,7 +304,7 @@ class M8RetryIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE webhook_deliveries SET next_retry_at=? WHERE id=?", timestamp(clock.instant()), delivery)).isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname='idx_webhook_deliveries_retry_scheduled_due'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
     }
 
     private String startServer(AtomicInteger response, AtomicInteger requests) throws Exception {
@@ -336,6 +339,7 @@ class M8RetryIntegrationTest {
     private UUID insertEndpoint(UUID application) {
         UUID endpoint = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO webhook_endpoints (id, application_id, name, url, status, created_at, updated_at) VALUES (?, ?, 'M8', 'https://public.example.test/hook', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", endpoint, application);
+        signingSecrets.provision(endpoint);
         return endpoint;
     }
 

@@ -205,7 +205,7 @@ DISABLED
 
 ## Notes
 
-M3 owns endpoint configuration only. Signing secrets, endpoint health, failure counts, and delivery timestamps are deferred. The platform must not send new webhook deliveries to a disabled endpoint when delivery is introduced later.
+M9 adds one encrypted signing-secret row per endpoint. It contains ciphertext, a fresh AES-GCM nonce, a key version, and timestamps; plaintext secrets never persist. New endpoint creation reveals the generated `whsec_` secret once. Existing endpoints require explicit owner provisioning before signed delivery; missing/decryption-failed secrets never fall back to unsigned delivery.
 
 ---
 

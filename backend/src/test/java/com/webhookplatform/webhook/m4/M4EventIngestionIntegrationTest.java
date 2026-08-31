@@ -75,6 +75,7 @@ class M4EventIngestionIntegrationTest {
         jdbcTemplate.update("DELETE FROM webhook_deliveries");
         jdbcTemplate.update("DELETE FROM webhook_events");
         jdbcTemplate.update("DELETE FROM webhook_subscriptions");
+        jdbcTemplate.update("DELETE FROM webhook_signing_secrets");
         jdbcTemplate.update("DELETE FROM webhook_endpoints");
         jdbcTemplate.update("DELETE FROM api_keys");
         jdbcTemplate.update("DELETE FROM applications");
@@ -217,7 +218,7 @@ class M4EventIngestionIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO webhook_events (id, application_id, source_event_id, event_type, payload, created_at) VALUES (?, ?, 'bad', 'bad', '{}'::jsonb, CURRENT_TIMESTAMP)", UUID.randomUUID(), firstApplication))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
     }
 
     @Test

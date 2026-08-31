@@ -65,6 +65,8 @@ the signature must be deterministic.
 
 Changing any signed input must change verification result.
 
+M9 verifies an independent known HMAC-SHA256 vector, exact transmitted body bytes, required signing headers, fresh retry signatures, endpoint-secret isolation, AES-GCM tamper rejection, V1-to-V9 migration, and terminal no-send behavior for missing signing material.
+
 ## State Transitions
 
 Test allowed transitions:

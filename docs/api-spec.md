@@ -246,6 +246,8 @@ Revocation is irreversible and idempotent. It returns safe metadata with status 
 
 # 6. Endpoint Management
 
+M9 endpoint creation returns endpoint metadata plus a one-time `signingSecret` and `Cache-Control: no-store`. Normal GET/list responses never include it. A pre-M9 endpoint is provisioned once by the owner through `POST /api/v1/applications/{applicationId}/endpoints/{endpointId}/signing-secret`, also CSRF-protected and `no-store`.
+
 ## Create Endpoint
 
 ```http

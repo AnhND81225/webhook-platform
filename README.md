@@ -1,6 +1,6 @@
 # Webhook Delivery Platform
 
-Current milestone: **M8 — Retry Engine**
+Current milestone: **M9 — HMAC Webhook Signing**
 
 This standalone platform receives immutable domain events from authenticated producer applications, creates durable delivery responsibilities for matching subscriptions, and delivers them to configured HTTP webhook endpoints. M7 adds durable metadata-only history for each physical outbound delivery attempt.
 
@@ -59,7 +59,7 @@ Copy `.env.example` to a local `.env` and provide values as needed. Local defaul
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret; required to start the backend |
 | `FRONTEND_URL` | Exact canonical dashboard origin and trusted post-login target; production uses `https://webhook.<domain>` |
 | `SESSION_TIMEOUT` | Backend session idle timeout; defaults to `30m` |
-| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Reserved for a later signing-secret milestone; unused in M7 |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Required Base64-encoded 32-byte AES-256-GCM master key for protected endpoint signing secrets |
 | `SPRING_PROFILES_ACTIVE` | Use `dev` locally or `prod` in production |
 | `VITE_API_BASE_URL` | Frontend backend base URL; defaults to `http://localhost:8080` |
 
@@ -77,7 +77,7 @@ docker compose up -d postgres
 
 If port 5432 is already occupied, use `POSTGRES_PORT=5433 docker compose up -d postgres` and set `DATABASE_URL=jdbc:postgresql://localhost:5433/webhook_platform` for the backend.
 
-Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V8 own the M1–M8 schema. Hibernate schema mode is `validate`, never `update`.
+Production uses AWS RDS for PostgreSQL and must not run PostgreSQL in Docker on the EC2 backend host. Flyway migrations V1–V9 own the M1–M9 schema. Hibernate schema mode is `validate`, never `update`.
 
 ## Backend
 
@@ -155,6 +155,8 @@ M5 creates one durable `PENDING` delivery per matching active subscription and s
 
 M7 records one claim-token-bound attempt before each outbound request. Attempt history stores only status, timestamps, monotonic duration, HTTP status, and a controlled error code—never request payloads, endpoint URLs, headers, response bodies, or arbitrary exception messages.
 
-M8 adds PostgreSQL-backed `RETRY_SCHEDULED` delivery state with `next_retry_at`. The default policy permits at most five total attempts with delays of 10 seconds, 30 seconds, 2 minutes, and 10 minutes. Only HTTP 408, 429, and 5xx responses plus DNS, connection, and timeout failures retry; TLS and SSRF rejections are terminal. `Retry-After` is not parsed. An `ABANDONED` attempt counts because it may have reached the consumer, while a stale claim with no created attempt returns directly to `PENDING`. Delivery remains at-least-once. HMAC signing, delivery APIs/UI, queues, and outbox processing remain future milestones.
+M8 adds PostgreSQL-backed `RETRY_SCHEDULED` delivery state with `next_retry_at`. The default policy permits at most five total attempts with delays of 10 seconds, 30 seconds, 2 minutes, and 10 minutes. Only HTTP 408, 429, and 5xx responses plus DNS, connection, and timeout failures retry; TLS and SSRF rejections are terminal.
+
+M9 signs every outbound request with an endpoint-scoped `whsec_` secret. The platform signs `UTF8(timestamp) + "." + exact transmitted body bytes` using HMAC-SHA256 and sends `X-Webhook-Signature: v1=<lowercase-hex>`. Secrets are revealed once when an endpoint is created or an existing endpoint is explicitly provisioned, then stored only as AES-256-GCM ciphertext. Consumers must verify the raw HTTP body before parsing it, use constant-time comparison, reject timestamps outside a five-minute tolerance, and deduplicate `X-Webhook-Delivery-Id` where practical. Secret rotation is deferred; every retry uses the current endpoint secret at send time.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.

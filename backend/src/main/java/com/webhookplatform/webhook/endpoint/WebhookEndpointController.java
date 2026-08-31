@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.webhookplatform.webhook.security.CurrentUserService;
+import com.webhookplatform.webhook.signature.ProvisionedSigningSecret;
 
 @RestController
 @RequestMapping("/api/v1/applications/{applicationId}/endpoints")
@@ -30,13 +31,22 @@ public class WebhookEndpointController {
     }
 
     @PostMapping
-    public ResponseEntity<WebhookEndpointResponse> create(
+    public ResponseEntity<CreatedWebhookEndpointResponse> create(
             @PathVariable UUID applicationId,
             @Valid @RequestBody CreateWebhookEndpointRequest request) {
-        WebhookEndpointResponse response = endpointService.create(
+        CreatedWebhookEndpointResponse response = endpointService.create(
                 applicationId, currentUserService.requireCurrentUser().id(), request);
         return ResponseEntity.created(URI.create("/api/v1/applications/" + applicationId + "/endpoints/" + response.id()))
+                .header("Cache-Control", "no-store")
                 .body(response);
+    }
+
+    @PostMapping("/{endpointId}/signing-secret")
+    public ResponseEntity<ProvisionedSigningSecret> provisionSigningSecret(
+            @PathVariable UUID applicationId, @PathVariable UUID endpointId) {
+        ProvisionedSigningSecret response = endpointService.provisionSigningSecret(
+                applicationId, endpointId, currentUserService.requireCurrentUser().id());
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(response);
     }
 
     @GetMapping

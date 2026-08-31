@@ -63,6 +63,7 @@ class M3EndpointSubscriptionIntegrationTest {
     @BeforeEach
     void cleanDatabase() {
         jdbcTemplate.update("DELETE FROM webhook_subscriptions");
+        jdbcTemplate.update("DELETE FROM webhook_signing_secrets");
         jdbcTemplate.update("DELETE FROM webhook_endpoints");
         jdbcTemplate.update("DELETE FROM api_keys");
         jdbcTemplate.update("DELETE FROM applications");
@@ -94,6 +95,76 @@ class M3EndpointSubscriptionIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Updated"))
                 .andExpect(jsonPath("$.status").value("DISABLED"));
+    }
+
+    @Test
+    void exposesSigningSecretOnlyOnEndpointCreationWithNoStore() throws Exception {
+        OAuth2AuthenticationToken owner = authenticationFor(insertUser("signing-secret-owner"));
+        UUID applicationId = insertApplication(owner.getPrincipal().getName(), "signing-secret-app");
+        MvcResult created = mockMvc.perform(post(endpointPath(applicationId)).with(authentication(owner)).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(endpointRequest("Signed", "http://localhost:8081/hook")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.signingSecret").value(org.hamcrest.Matchers.startsWith("whsec_")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"))
+                .andReturn();
+        UUID endpointId = responseId(created);
+        mockMvc.perform(get(endpointPath(applicationId) + "/{id}", endpointId).with(authentication(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.signingSecret").doesNotExist());
+        mockMvc.perform(get(endpointPath(applicationId)).with(authentication(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].signingSecret").doesNotExist());
+    }
+
+    @Test
+    void provisionsExistingEndpointsOnceWithOwnerIsolation() throws Exception {
+        OAuth2AuthenticationToken owner = authenticationFor(insertUser("pre-m9-owner"));
+        OAuth2AuthenticationToken other = authenticationFor(insertUser("pre-m9-other"));
+        UUID applicationId = insertApplication(owner.getPrincipal().getName(), "pre-m9-app");
+        UUID endpointId = insertEndpointWithoutSigningSecret(applicationId);
+        String path = endpointPath(applicationId) + "/" + endpointId + "/signing-secret";
+
+        MvcResult provisioned = mockMvc.perform(post(path).with(authentication(owner)).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value").value(org.hamcrest.Matchers.startsWith("whsec_")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"))
+                .andReturn();
+        String rawSecret = response(provisioned).get("value").asText();
+        byte[] ciphertext = jdbcTemplate.queryForObject("SELECT encrypted_secret FROM webhook_signing_secrets WHERE endpoint_id=?", byte[].class, endpointId);
+        assertThat(new String(ciphertext, java.nio.charset.StandardCharsets.UTF_8)).doesNotContain(rawSecret);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM webhook_signing_secrets WHERE endpoint_id=?", Long.class, endpointId)).isEqualTo(1L);
+
+        mockMvc.perform(post(path).with(authentication(owner)).with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SIGNING_SECRET_ALREADY_PROVISIONED"));
+        assertThat(jdbcTemplate.queryForObject("SELECT encrypted_secret FROM webhook_signing_secrets WHERE endpoint_id=?", byte[].class, endpointId)).isEqualTo(ciphertext);
+
+        mockMvc.perform(post(path).with(authentication(other)).with(csrf()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"));
+        UUID otherApplication = insertApplication(other.getPrincipal().getName(), "other-pre-m9-app");
+        mockMvc.perform(post(endpointPath(otherApplication) + "/" + endpointId + "/signing-secret").with(authentication(other)).with(csrf()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ENDPOINT_NOT_FOUND"));
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM webhook_signing_secrets WHERE endpoint_id=?", Long.class, endpointId)).isEqualTo(1L);
+        mockMvc.perform(get(endpointPath(applicationId) + "/{id}", endpointId).with(authentication(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.signingSecret").doesNotExist()).andExpect(jsonPath("$.nonce").doesNotExist());
+        mockMvc.perform(get(endpointPath(applicationId)).with(authentication(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].signingSecret").doesNotExist());
+    }
+
+    @Test
+    void enforcesV9SigningSecretConstraintsInPostgreSql() {
+        UUID applicationId = insertApplication(insertUser("v9-constraints").toString(), "v9-constraints-app");
+        UUID endpointId = insertEndpointWithoutSigningSecret(applicationId);
+        byte[] cipher = new byte[] {1, 2, 3}; byte[] nonce = new byte[12];
+        assertThatThrownBy(() -> insertSigningSecret(UUID.randomUUID(), UUID.randomUUID(), cipher, nonce, 1))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        insertSigningSecret(UUID.randomUUID(), endpointId, cipher, nonce, 1);
+        assertThatThrownBy(() -> insertSigningSecret(UUID.randomUUID(), endpointId, cipher, nonce, 1))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM webhook_signing_secrets WHERE endpoint_id=?", Long.class, endpointId)).isEqualTo(1L);
+        UUID secondEndpoint = insertEndpointWithoutSigningSecret(applicationId);
+        assertThatThrownBy(() -> insertSigningSecret(UUID.randomUUID(), secondEndpoint, cipher, new byte[11], 1))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertSigningSecret(UUID.randomUUID(), secondEndpoint, cipher, nonce, 0))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM webhook_signing_secrets WHERE endpoint_id=?", Long.class, secondEndpoint)).isZero();
     }
 
     @Test
@@ -164,7 +235,7 @@ class M3EndpointSubscriptionIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
     }
 
     private UUID insertUser(String subject) {
@@ -185,6 +256,16 @@ class M3EndpointSubscriptionIntegrationTest {
         return responseId(mockMvc.perform(post(endpointPath(applicationId)).with(authentication(authentication)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(endpointRequest(name, url)))
                 .andExpect(status().isCreated()).andReturn());
+    }
+
+    private UUID insertEndpointWithoutSigningSecret(UUID applicationId) {
+        UUID endpointId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO webhook_endpoints (id, application_id, name, url, status, created_at, updated_at) VALUES (?, ?, 'Pre M9', 'http://localhost:8081/hook', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", endpointId, applicationId);
+        return endpointId;
+    }
+
+    private void insertSigningSecret(UUID id, UUID endpointId, byte[] ciphertext, byte[] nonce, int keyVersion) {
+        jdbcTemplate.update("INSERT INTO webhook_signing_secrets (id, endpoint_id, encrypted_secret, nonce, key_version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", id, endpointId, ciphertext, nonce, keyVersion);
     }
 
     private void createSubscription(OAuth2AuthenticationToken authentication, UUID applicationId, UUID endpointId, String eventType) throws Exception {
