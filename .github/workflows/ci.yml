@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Test and package
+        working-directory: backend
+        run: mvn -B -ntp clean verify
+
+  frontend:
+    name: Frontend test, build, and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
+      - name: Build production assets
+        working-directory: frontend
+        run: npm run build
+      - name: Audit production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev
+
+  docker:
+    name: Build backend container
+    needs: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build --tag webhook-platform-backend:ci backend
+
+  repository-hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject tracked local and generated artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden_files="$(git ls-files | grep -v -E '(^|/)\.env\.example$' | grep -E '(^|/)(\.codex|codex)(/|$)|(^|/)\.env($|\.)|(^|/)(target|dist|node_modules)(/|$)|\.tsbuildinfo$|\.DS_Store$' || true)"
+          if [ -n "$forbidden_files" ]; then
+            printf '%s\n' "Tracked local or generated artifacts are not allowed:" >&2
+            printf '%s\n' "$forbidden_files" >&2
+            exit 1
+          fi
