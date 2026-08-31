@@ -1,12 +1,12 @@
 # Webhook Delivery Platform
 
-Current milestone: **M9 — HMAC Webhook Signing**
+Current milestone: **M10 — Dashboard Backend APIs**
 
 This standalone platform receives immutable domain events from authenticated producer applications, creates durable delivery responsibilities for matching subscriptions, and delivers them to configured HTTP webhook endpoints. M7 adds durable metadata-only history for each physical outbound delivery attempt.
 
 ## Architecture and technology
 
-The MVP is a modular monolith: a React dashboard calls a Spring Boot backend, which persists durable state in PostgreSQL. A PostgreSQL-backed worker claims and processes pending deliveries. Production uses Vercel for the frontend and Nginx in front of a Dockerized backend on AWS EC2, connected to AWS RDS for PostgreSQL. Authenticated production deployments require related custom domains such as `webhook.<domain>` and `api.webhook.<domain>`.
+The MVP is a modular monolith: the React authentication shell and future dashboard call a Spring Boot backend, which persists durable state in PostgreSQL. M10 adds backend dashboard read APIs only; it does not add a React dashboard UI. A PostgreSQL-backed worker claims and processes pending deliveries. Production uses Vercel for the frontend and Nginx in front of a Dockerized backend on AWS EC2, connected to AWS RDS for PostgreSQL. Authenticated production deployments require related custom domains such as `webhook.<domain>` and `api.webhook.<domain>`.
 
 - Backend: Java 17, Spring Boot 3.5, Maven, Spring Web, Validation, Data JPA, Security, OAuth2 Client, Actuator, PostgreSQL, Flyway
 - Frontend: React, TypeScript, Vite, React Router
@@ -147,7 +147,7 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M1–M8 status and MVP scope
+## M1–M10 status and MVP scope
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
@@ -158,5 +158,7 @@ M7 records one claim-token-bound attempt before each outbound request. Attempt h
 M8 adds PostgreSQL-backed `RETRY_SCHEDULED` delivery state with `next_retry_at`. The default policy permits at most five total attempts with delays of 10 seconds, 30 seconds, 2 minutes, and 10 minutes. Only HTTP 408, 429, and 5xx responses plus DNS, connection, and timeout failures retry; TLS and SSRF rejections are terminal.
 
 M9 signs every outbound request with an endpoint-scoped `whsec_` secret. The platform signs `UTF8(timestamp) + "." + exact transmitted body bytes` using HMAC-SHA256 and sends `X-Webhook-Signature: v1=<lowercase-hex>`. Secrets are revealed once when an endpoint is created or an existing endpoint is explicitly provisioned, then stored only as AES-256-GCM ciphertext. Consumers must verify the raw HTTP body before parsing it, use constant-time comparison, reject timestamps outside a five-minute tolerance, and deduplicate `X-Webhook-Delivery-Id` where practical. Secret rotation is deferred; every retry uses the current endpoint secret at send time.
+
+M10 adds session-authenticated backend read APIs for Application-scoped observability: dashboard summary, event list/detail, delivery list/detail, and attempt history. These APIs are not a React dashboard implementation. They use stable keyset pagination and hide cross-owner resources with `404`; producer API keys cannot access them. Dashboard output redacts credentials, cryptographic material, claim tokens, response bodies, and raw exceptions.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.
