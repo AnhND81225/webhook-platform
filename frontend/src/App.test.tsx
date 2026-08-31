@@ -37,3 +37,18 @@ it('shows a safe OAuth failure message', async () => {
 
   expect(await screen.findByRole('alert')).toHaveTextContent('Google sign-in could not be completed')
 })
+
+it('renders the public landing page with product-accurate calls to action', () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(screen.getByRole('heading', { name: 'Reliable webhook delivery for modern applications.' })).toBeInTheDocument()
+  expect(screen.getAllByRole('link', { name: 'Get started' })[0]).toHaveAttribute('href', '/login')
+  expect(screen.getByText('Automatic retries')).toBeInTheDocument()
+  expect(screen.queryByText(/manual retry|pricing|free events/i)).not.toBeInTheDocument()
+})
