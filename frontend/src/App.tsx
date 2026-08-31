@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AuthenticatedLayout } from './layouts/AuthenticatedLayout'
 import { AppIndexPage } from './pages/AppIndexPage'
+import { ApplicationsPage } from './pages/ApplicationsPage'
+import { ApplicationSettingsPage } from './pages/ApplicationSettingsPage'
 import { DeliveryDetailPage } from './pages/DeliveryDetailPage'
 import { DeliveriesPage } from './pages/DeliveriesPage'
 import { EventDetailPage } from './pages/EventDetailPage'
@@ -24,7 +26,9 @@ export default function App() {
         )}
       >
         <Route index element={<AppIndexPage />} />
+        <Route path="applications" element={<ApplicationsPage />} />
         <Route path=":applicationId" element={<OverviewPage />} />
+        <Route path=":applicationId/settings" element={<ApplicationSettingsPage />} />
         <Route path=":applicationId/events" element={<EventsPage />} />
         <Route path=":applicationId/events/:eventId" element={<EventDetailPage />} />
         <Route path=":applicationId/deliveries" element={<DeliveriesPage />} />

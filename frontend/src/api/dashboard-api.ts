@@ -11,6 +11,7 @@ export type Application = {
 }
 
 export type CreateApplication = Pick<Application, 'name' | 'slug' | 'environment'>
+export type UpdateApplication = Partial<Pick<Application, 'name' | 'status'>>
 
 export type DashboardSummary = {
   events: { total: number; last24Hours: number }
@@ -50,12 +51,12 @@ async function request<T>(path: string, query?: Query, signal?: AbortSignal): Pr
   return response.json() as Promise<T>
 }
 
-async function mutation<T>(path: string, body: unknown): Promise<T> {
+async function mutation<T>(path: string, method: 'POST' | 'PATCH', body: unknown): Promise<T> {
   const csrfResponse = await credentialedFetch('/api/v1/auth/csrf')
   if (!csrfResponse.ok) throw await parseError(csrfResponse)
   const csrf = await csrfResponse.json() as { token: string }
   const response = await credentialedFetch(path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.token },
     body: JSON.stringify(body),
   })
@@ -65,7 +66,9 @@ async function mutation<T>(path: string, body: unknown): Promise<T> {
 
 export const dashboardApi = {
   listApplications: (signal?: AbortSignal) => request<Application[]>('/api/v1/applications', undefined, signal),
-  createApplication: (application: CreateApplication) => mutation<Application>('/api/v1/applications', application),
+  application: (applicationId: string, signal?: AbortSignal) => request<Application>(`/api/v1/applications/${applicationId}`, undefined, signal),
+  createApplication: (application: CreateApplication) => mutation<Application>('/api/v1/applications', 'POST', application),
+  updateApplication: (applicationId: string, application: UpdateApplication) => mutation<Application>(`/api/v1/applications/${applicationId}`, 'PATCH', application),
   summary: (applicationId: string, signal?: AbortSignal) => request<DashboardSummary>(`/api/v1/applications/${applicationId}/dashboard/summary`, undefined, signal),
   events: (applicationId: string, query: Query, signal?: AbortSignal) => request<PagedResponse<EventListItem>>(`/api/v1/applications/${applicationId}/events`, query, signal),
   event: (applicationId: string, eventId: string, signal?: AbortSignal) => request<EventDetail>(`/api/v1/applications/${applicationId}/events/${eventId}`, undefined, signal),

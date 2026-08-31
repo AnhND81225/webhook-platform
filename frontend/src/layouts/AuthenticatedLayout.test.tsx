@@ -24,7 +24,9 @@ function renderShell(initialEntry = '/app/app-a') {
         <Routes>
           <Route path="/app" element={<AuthenticatedLayout />}>
             <Route index element={<LocationProbe />} />
+            <Route path="applications" element={<LocationProbe />} />
             <Route path=":applicationId" element={<LocationProbe />} />
+            <Route path=":applicationId/settings" element={<LocationProbe />} />
             <Route path=":applicationId/events" element={<LocationProbe />} />
             <Route path=":applicationId/events/:eventId" element={<LocationProbe />} />
             <Route path=":applicationId/deliveries" element={<LocationProbe />} />
@@ -51,7 +53,8 @@ it('renders authenticated shell navigation and switches nested routes to the sel
   expect(screen.getByRole('link', { name: 'Deliveries' })).not.toHaveClass('active')
   expect(screen.getByRole('link', { name: 'Events' })).toHaveAttribute('href', '/app/app-a/events')
   expect(screen.getByRole('link', { name: 'Deliveries' })).toHaveAttribute('href', '/app/app-a/deliveries')
-  expect(screen.queryByRole('link', { name: 'Applications' })).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Applications' })).toHaveAttribute('href', '/app/applications')
+  expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/app/app-a/settings')
 
   await userEvent.selectOptions(screen.getByLabelText('Application'), 'app-b')
   expect(await screen.findByTestId('location')).toHaveTextContent('/app/app-b')
