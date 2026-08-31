@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.webhookplatform.webhook.application.Application;
 import com.webhookplatform.webhook.application.ApplicationService;
+import com.webhookplatform.webhook.signature.ProvisionedSigningSecret;
+import com.webhookplatform.webhook.signature.WebhookSigningSecretService;
 
 @Service
 public class WebhookEndpointService {
@@ -16,26 +18,32 @@ public class WebhookEndpointService {
     private final WebhookEndpointRepository endpointRepository;
     private final ApplicationService applicationService;
     private final EndpointUrlValidator endpointUrlValidator;
+    private final WebhookSigningSecretService signingSecretService;
     private final Clock clock;
 
     public WebhookEndpointService(
             WebhookEndpointRepository endpointRepository,
             ApplicationService applicationService,
             EndpointUrlValidator endpointUrlValidator,
+            WebhookSigningSecretService signingSecretService,
             Clock clock) {
         this.endpointRepository = endpointRepository;
         this.applicationService = applicationService;
         this.endpointUrlValidator = endpointUrlValidator;
+        this.signingSecretService = signingSecretService;
         this.clock = clock;
     }
 
     @Transactional
-    public WebhookEndpointResponse create(
+    public CreatedWebhookEndpointResponse create(
             UUID applicationId, UUID ownerUserId, CreateWebhookEndpointRequest request) {
         Application application = applicationService.requireOwnedApplication(applicationId, ownerUserId);
         endpointUrlValidator.validate(request.url());
         WebhookEndpoint endpoint = WebhookEndpoint.create(application, request.name(), request.url(), clock.instant());
-        return WebhookEndpointResponse.from(endpointRepository.save(endpoint));
+        endpoint = endpointRepository.save(endpoint);
+        ProvisionedSigningSecret secret = signingSecretService.provision(endpoint);
+        return new CreatedWebhookEndpointResponse(endpoint.getId(), endpoint.getName(), endpoint.getUrl(), endpoint.getStatus(),
+                endpoint.getCreatedAt(), endpoint.getUpdatedAt(), secret.value());
     }
 
     @Transactional(readOnly = true)
@@ -68,5 +76,10 @@ public class WebhookEndpointService {
         applicationService.requireOwnedApplication(applicationId, ownerUserId);
         return endpointRepository.findByIdAndApplicationIdAndApplicationOwnerUserId(endpointId, applicationId, ownerUserId)
                 .orElseThrow(WebhookEndpointNotFoundException::new);
+    }
+
+    @Transactional
+    public ProvisionedSigningSecret provisionSigningSecret(UUID applicationId, UUID endpointId, UUID ownerUserId) {
+        return signingSecretService.provision(requireOwnedEndpoint(applicationId, endpointId, ownerUserId));
     }
 }

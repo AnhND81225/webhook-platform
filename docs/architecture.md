@@ -251,6 +251,9 @@ Load event + endpoint
 Build canonical request body
    |
    v
+Serialize once, HMAC-sign exact bytes
+   |
+   v
 POST to endpoint
    |
    v

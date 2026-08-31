@@ -47,7 +47,9 @@ management:
 
 webhook-platform:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
-  secret-encryption-key: ${WEBHOOK_SECRET_ENCRYPTION_KEY:}
+  signing:
+    master-key: ${WEBHOOK_SECRET_ENCRYPTION_KEY:}
+    key-version: 1
   worker:
     enabled: ${WEBHOOK_WORKER_ENABLED:true}
     batch-size: ${WEBHOOK_WORKER_BATCH_SIZE:50}

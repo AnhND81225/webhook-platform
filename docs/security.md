@@ -114,11 +114,11 @@ Recommended headers:
 X-Webhook-Id: evt_01J...
 X-Webhook-Delivery-Id: del_01J...
 X-Webhook-Timestamp: 1787980814
-X-Webhook-Signature: v1=<hex-or-base64-signature>
+X-Webhook-Signature: v1=<lowercase-hex-hmac-sha256>
 X-Webhook-Event: ai.solution.completed
 ```
 
-Exact encoding must be documented and tested.
+M9 fixes this contract as `v1=<lowercase hexadecimal HMAC-SHA256 digest>`. The signed byte sequence is UTF-8 timestamp bytes, a single `.` byte, then the exact HTTP body bytes sent on the wire.
 
 ---
 
@@ -152,7 +152,7 @@ Version 1 options:
 - encrypted database column using an application-managed encryption key
 - secret manager when deployed to cloud
 
-Do not store the raw signing secret as ordinary plaintext.
+M9 stores each endpoint's independent 32-byte signing key as AES-256-GCM ciphertext with a fresh 12-byte nonce and endpoint/key-version authenticated associated data. The Base64 32-byte master key is supplied only through `WEBHOOK_SECRET_ENCRYPTION_KEY`; it is never stored in PostgreSQL. A missing or undecryptable secret produces terminal `SIGNING_ERROR` and never permits an unsigned send.
 
 Do not log it.
 

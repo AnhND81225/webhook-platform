@@ -16,7 +16,7 @@ class WebhookDeliveryPayloadFactory {
         this.objectMapper = objectMapper;
     }
 
-    String create(ClaimedDelivery delivery) {
+    byte[] create(ClaimedDelivery delivery) {
         try {
             ObjectNode body = objectMapper.createObjectNode();
             body.put("id", delivery.eventId().toString());
@@ -25,7 +25,7 @@ class WebhookDeliveryPayloadFactory {
             body.put("createdAt", delivery.eventCreatedAt().toString());
             JsonNode payload = objectMapper.readTree(delivery.payloadJson());
             body.set("payload", payload);
-            return objectMapper.writeValueAsString(body);
+            return objectMapper.writeValueAsBytes(body);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Persisted webhook event payload could not be serialized.", exception);
         }

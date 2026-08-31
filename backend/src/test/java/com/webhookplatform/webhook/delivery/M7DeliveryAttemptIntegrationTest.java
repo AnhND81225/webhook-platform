@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpServer;
+import com.webhookplatform.webhook.signature.WebhookSigningSecretService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,12 +49,14 @@ class M7DeliveryAttemptIntegrationTest {
     @Autowired private WebhookDeliveryAttemptService attempts;
     @Autowired private EntityManager entityManager;
     @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private WebhookSigningSecretService signingSecrets;
     @SpyBean private DestinationAddressPolicy destinationAddressPolicy;
     private HttpServer server;
 
     @BeforeEach
     void cleanDatabase() {
         jdbcTemplate.update("DELETE FROM webhook_delivery_attempts");
+        jdbcTemplate.update("DELETE FROM webhook_signing_secrets");
         jdbcTemplate.update("DELETE FROM webhook_deliveries");
         jdbcTemplate.update("DELETE FROM webhook_events");
         jdbcTemplate.update("DELETE FROM webhook_subscriptions");
@@ -227,7 +230,7 @@ class M7DeliveryAttemptIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO webhook_delivery_attempts (id, delivery_id, attempt_number, claim_token, status, started_at) VALUES (?, ?, 2, ?, 'UNKNOWN', CURRENT_TIMESTAMP)", UUID.randomUUID(), delivery, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbcTemplate.queryForList("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname='idx_webhook_delivery_attempts_delivery_history'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_indexes WHERE indexname='idx_webhook_delivery_attempts_in_progress_claim'", Long.class)).isEqualTo(1L);
     }
@@ -249,6 +252,7 @@ class M7DeliveryAttemptIntegrationTest {
     private UUID insertEndpoint(UUID application) {
         UUID endpoint = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO webhook_endpoints (id, application_id, name, url, status, created_at, updated_at) VALUES (?, ?, 'M7', 'https://public.example.test/hook', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", endpoint, application);
+        signingSecrets.provision(endpoint);
         return endpoint;
     }
 

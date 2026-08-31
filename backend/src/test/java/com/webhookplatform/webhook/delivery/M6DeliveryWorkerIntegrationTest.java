@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpServer;
+import com.webhookplatform.webhook.signature.WebhookSigningSecretService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,12 +56,14 @@ class M6DeliveryWorkerIntegrationTest {
     @Autowired private WebhookDeliveryWorker worker;
     @Autowired private OutboundWebhookClient outboundWebhookClient;
     @Autowired private WebhookDeliveryPayloadFactory payloadFactory;
+    @Autowired private WebhookSigningSecretService signingSecrets;
     @SpyBean private DestinationAddressPolicy destinationAddressPolicy;
     private HttpServer server;
 
     @BeforeEach
     void cleanDatabase() {
         jdbcTemplate.update("DELETE FROM webhook_delivery_attempts");
+        jdbcTemplate.update("DELETE FROM webhook_signing_secrets");
         jdbcTemplate.update("DELETE FROM webhook_deliveries");
         jdbcTemplate.update("DELETE FROM webhook_events");
         jdbcTemplate.update("DELETE FROM webhook_subscriptions");
@@ -299,6 +302,7 @@ class M6DeliveryWorkerIntegrationTest {
     private UUID insertEndpoint(UUID application, String url) {
         UUID endpoint = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO webhook_endpoints (id, application_id, name, url, status, created_at, updated_at) VALUES (?, ?, 'Endpoint', ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", endpoint, application, url);
+        signingSecrets.provision(endpoint);
         return endpoint;
     }
 

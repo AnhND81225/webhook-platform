@@ -7,6 +7,7 @@ public enum WebhookDeliveryAttemptErrorCode {
     CONNECTION_ERROR,
     TIMEOUT,
     TLS_ERROR,
+    SIGNING_ERROR,
     IO_ERROR,
     UNEXPECTED_ERROR
 }

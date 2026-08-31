@@ -13,6 +13,7 @@ import com.webhookplatform.webhook.application.ApplicationNotFoundException;
 import com.webhookplatform.webhook.application.ApplicationSlugConflictException;
 import com.webhookplatform.webhook.endpoint.InvalidEndpointUrlException;
 import com.webhookplatform.webhook.endpoint.WebhookEndpointNotFoundException;
+import com.webhookplatform.webhook.endpoint.WebhookSigningSecretAlreadyProvisionedException;
 import com.webhookplatform.webhook.event.InvalidWebhookEventException;
 import com.webhookplatform.webhook.event.PayloadTooLargeException;
 import com.webhookplatform.webhook.event.SourceEventConflictException;
@@ -58,6 +59,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(WebhookEndpointNotFoundException.class)
     ResponseEntity<ApiErrorResponse> endpointNotFound(WebhookEndpointNotFoundException exception) {
         return error(HttpStatus.NOT_FOUND, "ENDPOINT_NOT_FOUND", exception.getMessage());
+    }
+
+    @ExceptionHandler(WebhookSigningSecretAlreadyProvisionedException.class)
+    ResponseEntity<ApiErrorResponse> signingSecretAlreadyProvisioned(WebhookSigningSecretAlreadyProvisionedException exception) {
+        return error(HttpStatus.CONFLICT, "SIGNING_SECRET_ALREADY_PROVISIONED", exception.getMessage());
     }
 
     @ExceptionHandler(WebhookSubscriptionNotFoundException.class)

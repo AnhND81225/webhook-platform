@@ -6,6 +6,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 
 import javax.net.ssl.SSLHandshakeException;
+import com.webhookplatform.webhook.signature.SigningException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,6 +84,7 @@ class WebhookDeliveryWorker {
 
     private WebhookDeliveryAttemptErrorCode classify(Exception exception) {
         if (hasCause(exception, UnsafeWebhookDestinationException.class)) return WebhookDeliveryAttemptErrorCode.SSRF_REJECTED;
+        if (hasCause(exception, SigningException.class)) return WebhookDeliveryAttemptErrorCode.SIGNING_ERROR;
         if (hasCause(exception, UnknownHostException.class)) return WebhookDeliveryAttemptErrorCode.DNS_ERROR;
         if (hasCause(exception, SSLHandshakeException.class)) return WebhookDeliveryAttemptErrorCode.TLS_ERROR;
         if (hasCause(exception, SocketTimeoutException.class)) return WebhookDeliveryAttemptErrorCode.TIMEOUT;
