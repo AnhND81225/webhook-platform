@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          forbidden_files="$(git ls-files | grep -E '(^|/)(\.codex|codex)(/|$)|(^|/)\.env($|\.)|(^|/)(target|dist|node_modules)(/|$)|\.tsbuildinfo$|\.DS_Store$' || true)"
+          forbidden_files="$(git ls-files | grep -v -E '(^|/)\.env\.example$' | grep -E '(^|/)(\.codex|codex)(/|$)|(^|/)\.env($|\.)|(^|/)(target|dist|node_modules)(/|$)|\.tsbuildinfo$|\.DS_Store$' || true)"
           if [ -n "$forbidden_files" ]; then
             printf '%s\n' "Tracked local or generated artifacts are not allowed:" >&2
             printf '%s\n' "$forbidden_files" >&2
