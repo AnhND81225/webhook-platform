@@ -10,6 +10,8 @@ export type Application = {
   updatedAt: string
 }
 
+export type CreateApplication = Pick<Application, 'name' | 'slug' | 'environment'>
+
 export type DashboardSummary = {
   events: { total: number; last24Hours: number }
   deliveries: { pending: number; processing: number; retryScheduled: number; delivered: number; failed: number }
@@ -27,10 +29,16 @@ export type DeliveryAttempt = { id: string; attemptNumber: number; status: Attem
 export type PagedResponse<T> = { items: T[]; nextCursor: string | null }
 
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) { super(message) }
+  constructor(readonly status: number, message: string, readonly code: string | null = null) { super(message) }
 }
 
 type Query = Record<string, string | number | null | undefined>
+
+async function parseError(response: Response): Promise<ApiError> {
+  if (response.status === 401) window.dispatchEvent(new Event('webhook-platform:unauthenticated'))
+  const body = await response.json().catch(() => null) as { code?: string; message?: string } | null
+  return new ApiError(response.status, body?.message ?? `Request failed with status ${response.status}`, body?.code ?? null)
+}
 
 async function request<T>(path: string, query?: Query, signal?: AbortSignal): Promise<T> {
   const params = new URLSearchParams()
@@ -38,16 +46,26 @@ async function request<T>(path: string, query?: Query, signal?: AbortSignal): Pr
     if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
   })
   const response = await credentialedFetch(`${path}${params.size ? `?${params}` : ''}`, { signal })
-  if (!response.ok) {
-    if (response.status === 401) window.dispatchEvent(new Event('webhook-platform:unauthenticated'))
-    const body = await response.json().catch(() => null) as { message?: string } | null
-    throw new ApiError(response.status, body?.message ?? `Request failed with status ${response.status}`)
-  }
+  if (!response.ok) throw await parseError(response)
+  return response.json() as Promise<T>
+}
+
+async function mutation<T>(path: string, body: unknown): Promise<T> {
+  const csrfResponse = await credentialedFetch('/api/v1/auth/csrf')
+  if (!csrfResponse.ok) throw await parseError(csrfResponse)
+  const csrf = await csrfResponse.json() as { token: string }
+  const response = await credentialedFetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf.token },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw await parseError(response)
   return response.json() as Promise<T>
 }
 
 export const dashboardApi = {
   listApplications: (signal?: AbortSignal) => request<Application[]>('/api/v1/applications', undefined, signal),
+  createApplication: (application: CreateApplication) => mutation<Application>('/api/v1/applications', application),
   summary: (applicationId: string, signal?: AbortSignal) => request<DashboardSummary>(`/api/v1/applications/${applicationId}/dashboard/summary`, undefined, signal),
   events: (applicationId: string, query: Query, signal?: AbortSignal) => request<PagedResponse<EventListItem>>(`/api/v1/applications/${applicationId}/events`, query, signal),
   event: (applicationId: string, eventId: string, signal?: AbortSignal) => request<EventDetail>(`/api/v1/applications/${applicationId}/events/${eventId}`, undefined, signal),

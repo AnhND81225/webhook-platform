@@ -1,9 +1,18 @@
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { dashboardApi } from '../api/dashboard-api'
+import { dashboardApi, type Application } from '../api/dashboard-api'
 import { useResource } from '../lib/useResource'
 import { useAuth } from '../auth/AuthProvider'
 import { Button } from '../components/ui/Button'
+import { CreateApplicationDialog } from '../components/application/CreateApplicationDialog'
+
+export type ApplicationShellContext = {
+  applications: Application[] | null
+  applicationsLoading: boolean
+  applicationsError: Error | null
+  retryApplications: () => void
+  openApplicationCreation: (trigger?: HTMLElement) => void
+}
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?'
@@ -82,8 +91,10 @@ export function AuthenticatedLayout() {
   const { applicationId } = useParams()
   const applications = useResource('applications:shell', useCallback((signal: AbortSignal) => dashboardApi.listApplications(signal), []))
   const [navigationOpen, setNavigationOpen] = useState(false)
+  const [creationOpen, setCreationOpen] = useState(false)
   const sidebarRef = useRef<HTMLElement>(null)
   const mobileTriggerRef = useRef<HTMLButtonElement>(null)
+  const creationTriggerRef = useRef<HTMLElement>(null)
   const wasNavigationOpen = useRef(false)
 
   useEffect(() => {
@@ -119,6 +130,16 @@ export function AuthenticatedLayout() {
   const currentApplication = applications.data?.find((application) => application.id === applicationId)
   const applicationRoute = applicationId ? `/app/${applicationId}` : '/app'
   const closeNavigation = () => setNavigationOpen(false)
+  const openApplicationCreation = (trigger?: HTMLElement) => {
+    creationTriggerRef.current = trigger ?? null
+    closeNavigation()
+    setCreationOpen(true)
+  }
+  const handleApplicationCreated = (application: Application) => {
+    applications.update((current) => [application, ...(current ?? []).filter((item) => item.id !== application.id)])
+    setCreationOpen(false)
+    navigate(`/app/${application.id}`)
+  }
 
   return (
     <div className="console-layout">
@@ -128,14 +149,19 @@ export function AuthenticatedLayout() {
         <label className="application-context"><span>Application</span>
           <select className="app-selector" value={applicationId ?? ''} disabled={applications.loading || !applications.data?.length} onChange={(event) => { closeNavigation(); navigate(`/app/${event.target.value}`) }}>
             {!applicationId && <option value="">Select application</option>}
-            {applications.data?.map((application) => <option key={application.id} value={application.id}>{application.name}</option>)}
+            {applications.data?.map((application) => <option key={application.id} value={application.id}>{application.name} · {application.environment === 'PRODUCTION' ? 'Production' : 'Development'}</option>)}
           </select>
         </label>
-        <nav className="console-nav" aria-label="Primary navigation">
-          <NavLink end to={applicationRoute} onClick={closeNavigation}>Overview</NavLink>
-          <NavLink to={applicationId ? `/app/${applicationId}/events` : '/app'} onClick={closeNavigation}>Events</NavLink>
-          <NavLink to={applicationId ? `/app/${applicationId}/deliveries` : '/app'} onClick={closeNavigation}>Deliveries</NavLink>
-        </nav>
+        {applications.data?.length ? (
+          <>
+            <Button className="application-create-trigger" variant="secondary" onClick={(event) => openApplicationCreation(event.currentTarget)}>Create application</Button>
+            <nav className="console-nav" aria-label="Primary navigation">
+              <NavLink end to={applicationRoute} onClick={closeNavigation}>Overview</NavLink>
+              <NavLink to={applicationId ? `/app/${applicationId}/events` : '/app'} onClick={closeNavigation}>Events</NavLink>
+              <NavLink to={applicationId ? `/app/${applicationId}/deliveries` : '/app'} onClick={closeNavigation}>Deliveries</NavLink>
+            </nav>
+          </>
+        ) : null}
         <div className="sidebar-account">
           <AccountMenu
             displayName={auth.user.displayName}
@@ -151,9 +177,10 @@ export function AuthenticatedLayout() {
           <span className="console-context">{currentApplication?.name ?? 'Developer console'}</span>
         </header>
         <main className="console-content">
-          <Outlet />
+          <Outlet context={{ applications: applications.data, applicationsLoading: applications.loading, applicationsError: applications.error, retryApplications: applications.reload, openApplicationCreation }} />
         </main>
       </div>
+      {creationOpen && <CreateApplicationDialog onCreated={handleApplicationCreated} onDismiss={() => setCreationOpen(false)} returnFocusRef={creationTriggerRef} />}
     </div>
   )
 }
