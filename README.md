@@ -147,6 +147,10 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
+## Continuous integration
+
+GitHub Actions runs on pushes, pull requests, and manual dispatches. It verifies the backend with Java 17, Maven, and PostgreSQL Testcontainers; tests, builds, and audits the frontend; validates the backend Docker build; and rejects tracked local or generated artifacts. The workflow does not deploy or publish images.
+
 ## M1–M11 status and MVP scope
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
