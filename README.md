@@ -147,7 +147,7 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
 
-## M1–M10 status and MVP scope
+## M1–M11 status and MVP scope
 
 M4 implements `POST /api/v1/events` for server-to-server producers using exactly `Authorization: Bearer <api-key>`. A complete key is SHA-256 hashed for lookup, and both the key and owning Application must be `ACTIVE`. Events are immutable `JSONB` records, unique by `(application_id, source_event_id)`. Exact retries return the existing event; conflicting reuse returns `409 SOURCE_EVENT_ID_CONFLICT`. Producer request bodies are limited to 1 MiB, and `last_used_at` is updated after successful producer credential validation.
 
@@ -160,5 +160,7 @@ M8 adds PostgreSQL-backed `RETRY_SCHEDULED` delivery state with `next_retry_at`.
 M9 signs every outbound request with an endpoint-scoped `whsec_` secret. The platform signs `UTF8(timestamp) + "." + exact transmitted body bytes` using HMAC-SHA256 and sends `X-Webhook-Signature: v1=<lowercase-hex>`. Secrets are revealed once when an endpoint is created or an existing endpoint is explicitly provisioned, then stored only as AES-256-GCM ciphertext. Consumers must verify the raw HTTP body before parsing it, use constant-time comparison, reject timestamps outside a five-minute tolerance, and deduplicate `X-Webhook-Delivery-Id` where practical. Secret rotation is deferred; every retry uses the current endpoint secret at send time.
 
 M10 adds session-authenticated backend read APIs for Application-scoped observability: dashboard summary, event list/detail, delivery list/detail, and attempt history. These APIs are not a React dashboard implementation. They use stable keyset pagination and hide cross-owner resources with `404`; producer API keys cannot access them. Dashboard output redacts credentials, cryptographic material, claim tokens, response bodies, and raw exceptions.
+
+M11 adds the React developer dashboard for M10 observability APIs: application-scoped overview, events and event detail, deliveries and delivery detail with attempt history. It uses opaque cursor pagination, route-based application selection, explicit redacted DTO fields, and safe text-only JSON payload rendering. Endpoint/API-key management and delivery mutation UI remain out of scope.
 
 M1 operational limitation: changing a user from `ACTIVE` to `DISABLED` prevents new login sessions but does not immediately revoke a session that is already authenticated. That session remains usable until logout, idle expiration (30 minutes by default), backend restart, or explicit session invalidation. Immediate distributed revocation is outside M1.

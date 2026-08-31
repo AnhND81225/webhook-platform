@@ -378,18 +378,26 @@ test:
 
 Important dashboard flows:
 
-- Overview loads metrics
-- endpoint list filters correctly
-- event details show deliveries
-- delivery details show attempts
-- failed delivery exposes retry action
+- `/app` selects an owned application or shows the no-applications state
+- overview renders M10 summary metrics
+- event ISO date filters hydrate local datetime inputs and submit ISO instants
+- delivery date filters are available and hydrate from URL state
+- events preserve opaque cursor pagination
+- dashboard `401` transitions the session to the existing unauthenticated flow
+- stale App A responses cannot overwrite an already-rendered App B list
+- event detail renders producer payload as safe text and handles `404`
+- delivery detail shows `ABANDONED` with outcome-unknown wording
+- all five delivery statuses remain readable
+- observability list views render explicit fields only, ignoring unexpected secret-like response properties
 - loading state
 - empty state
 - error state
-- retrying state
+- retry-scheduled state with next retry time
 - desktop layout at 1440px
 - desktop layout at 1280px
 - no page-level horizontal overflow
+
+M11 uses Vitest and Testing Library with controlled `fetch` responses. It does not introduce an end-to-end test framework.
 
 `DESIGN.md` remains the source of truth for visual behavior.
 

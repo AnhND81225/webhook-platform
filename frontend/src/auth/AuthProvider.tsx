@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   fetchCurrentUser,
   logoutSession,
@@ -53,6 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useLayoutEffect(() => {
+    const handleUnauthenticated = () => setState({ status: 'unauthenticated', user: null })
+    window.addEventListener('webhook-platform:unauthenticated', handleUnauthenticated)
+    return () => window.removeEventListener('webhook-platform:unauthenticated', handleUnauthenticated)
+  }, [])
 
   const value = useMemo(() => ({ ...state, refresh, logout }), [state, refresh, logout])
 
