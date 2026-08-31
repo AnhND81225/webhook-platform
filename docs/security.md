@@ -267,6 +267,8 @@ Changing a local user to `DISABLED` blocks subsequent logins but does not revoke
 
 Google tokens are never returned to the frontend or persisted in application tables.
 
+M10 dashboard read APIs require that session authentication; `Authorization: Bearer <producer-api-key>` is only for `POST /api/v1/events` and cannot authorize dashboard reads. Every dashboard route scopes its Application and nested event/delivery resources to the authenticated local user, using `404` to hide cross-owner resource existence. Dashboard DTOs omit raw API keys and hashes, signing secrets/ciphertext/nonces/master keys, claim tokens, signatures, response bodies, and raw exceptions. Endpoint and delivery URLs are serialized without user-info, query strings, or fragments.
+
 Full multi-user RBAC is out of MVP scope.
 
 ---

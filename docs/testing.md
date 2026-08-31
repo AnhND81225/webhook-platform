@@ -275,7 +275,9 @@ If stale-processing recovery is not implemented in the first milestone, record i
 
 ---
 
-# 9. Manual Retry Tests
+# 9. Future Manual Retry Tests
+
+Manual retry is not implemented in the MVP through M10. The scenarios below are reserved for a future explicitly scoped feature.
 
 Given:
 
@@ -338,7 +340,21 @@ Test:
 
 ---
 
-# 11. HMAC Tests
+# 11. Dashboard Read API Tests (M10)
+
+M10 uses PostgreSQL/Testcontainers integration coverage for:
+
+- session authentication, owner scoping, cross-owner `404`, and producer API-key rejection;
+- exact Application-scoped summary counts, including the last-24-hours window;
+- event and delivery keyset pagination, filters, empty results, and controlled invalid-query responses;
+- delivery last-attempt aggregation, detail URL sanitization, and ordered attempt history;
+- DTO redaction of payloads from list rows and all credentials, encryption material, claim tokens, response bodies, and raw exceptions.
+
+The M10 query-plan review runs `EXPLAIN (ANALYZE, BUFFERS)` on PostgreSQL 17 with representative multi-tenant events, deliveries, endpoints, and attempts. It verifies aggregate work remains in SQL, no Java N+1 query path is used, and existing M1–M9 indexes support the MVP access patterns. Flyway V10 is not required.
+
+---
+
+# 12. HMAC Tests
 
 Given known vectors:
 
@@ -358,7 +374,7 @@ test:
 
 ---
 
-# 12. Frontend Tests
+# 13. Frontend Tests
 
 Important dashboard flows:
 
@@ -379,7 +395,7 @@ Important dashboard flows:
 
 ---
 
-# 13. End-to-End Demo Scenario
+# 14. End-to-End Demo Scenario
 
 The main portfolio demo should use:
 
@@ -425,7 +441,7 @@ The dashboard should show the complete event -> delivery -> attempt relationship
 
 ---
 
-# 14. Load Testing
+# 15. Load Testing
 
 Load testing is not required for initial MVP completion.
 
@@ -442,7 +458,7 @@ Only introduce Kafka/Redis after measurement demonstrates a real bottleneck.
 
 ---
 
-# 15. Definition of Verified Feature
+# 16. Definition of Verified Feature
 
 A feature is verified only if:
 

@@ -329,169 +329,147 @@ DELETE /api/v1/applications/{applicationId}/endpoints/{endpointId}/subscriptions
 
 ---
 
-# 8. Event Query API
+# 8. Dashboard Read APIs
 
-## List Events
+M10 provides session-authenticated, Application-scoped observability reads. The authenticated dashboard user owns the Application in every route; a non-owned or mismatched nested resource returns the established `404` response. A producer API key cannot authorize any dashboard read.
 
-```http
-GET /api/v1/events
-```
+Collection routes use opaque keyset cursors. Ordering is `createdAt DESC`, then `id DESC`; the default size is `25` and the maximum is `100`. `nextCursor` is `null` on the final page. Consumers must treat a cursor as opaque.
 
-Suggested filters:
+All `createdFrom` and `createdTo` values use ISO-8601 UTC instants. A range where `createdFrom > createdTo`, malformed cursor/timestamp, invalid status, or an out-of-range size returns `400` with the normal error DTO.
 
-```text
-applicationId
-eventType
-createdFrom
-createdTo
-search
-page
-size
-```
-
-## Get Event
+## Dashboard Summary
 
 ```http
-GET /api/v1/events/{eventId}
+GET /api/v1/applications/{applicationId}/dashboard/summary
 ```
-
-Recommended response includes:
-
-- event metadata
-- payload
-- delivery summary
-
-Example:
 
 ```json
 {
-  "id": "evt_01J67FC92X",
-  "sourceEventId": "evt-ai-982",
-  "application": {
-    "id": "app_01",
-    "name": "AI Study Assistant"
+  "events": { "total": 1284, "last24Hours": 42 },
+  "deliveries": {
+    "pending": 3,
+    "processing": 1,
+    "retryScheduled": 5,
+    "delivered": 1200,
+    "failed": 75
   },
-  "type": "ai.solution.completed",
-  "occurredAt": "2026-08-29T05:20:14Z",
-  "receivedAt": "2026-08-29T05:20:14.102Z",
-  "data": {
-    "solutionId": "sol_7392"
-  },
-  "deliverySummary": {
-    "total": 3,
-    "delivered": 2,
-    "retrying": 0,
-    "failed": 1
-  }
+  "recentFailures": 4
 }
 ```
 
----
-
-# 9. Delivery API
-
-## List Deliveries
+## Events
 
 ```http
-GET /api/v1/deliveries
+GET /api/v1/applications/{applicationId}/events
+GET /api/v1/applications/{applicationId}/events/{eventId}
 ```
 
-Suggested filters:
-
-```text
-status
-endpointId
-eventType
-applicationId
-httpStatus
-createdFrom
-createdTo
-search
-page
-size
-```
-
-## Get Delivery
-
-```http
-GET /api/v1/deliveries/{deliveryId}
-```
-
-Recommended response:
+List filters: `eventType`, `sourceEventId`, `createdFrom`, `createdTo`, `cursor`, and `size`.
 
 ```json
 {
-  "id": "del_01",
-  "status": "DELIVERED",
+  "items": [{
+    "id": "6eb5736d-4f40-45a2-8123-366e51880df7",
+    "sourceEventId": "solution-93482",
+    "eventType": "ai.solution.completed",
+    "createdAt": "2026-08-29T05:20:14Z",
+    "deliveryCount": 2,
+    "deliveredCount": 1,
+    "failedCount": 0,
+    "retryScheduledCount": 1
+  }],
+  "nextCursor": "opaque-cursor"
+}
+```
+
+The event detail additionally returns its immutable JSON `payload` and delivery counters:
+
+```json
+{
+  "id": "6eb5736d-4f40-45a2-8123-366e51880df7",
+  "sourceEventId": "solution-93482",
+  "eventType": "ai.solution.completed",
+  "createdAt": "2026-08-29T05:20:14Z",
+  "payload": {
+    "status": "completed"
+  },
+  "deliveryCount": 2,
+  "deliveredCount": 1,
+  "failedCount": 0,
+  "retryScheduledCount": 1
+}
+```
+
+Event list rows deliberately do not include payloads.
+
+## Deliveries
+
+```http
+GET /api/v1/applications/{applicationId}/deliveries
+GET /api/v1/applications/{applicationId}/deliveries/{deliveryId}
+GET /api/v1/applications/{applicationId}/deliveries/{deliveryId}/attempts
+```
+
+List filters: `status`, `endpointId`, `eventType`, `createdFrom`, `createdTo`, `cursor`, and `size`. Supported statuses are `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `DELIVERED`, and `FAILED`.
+
+```json
+{
+  "items": [{
+    "id": "0c764b64-1851-4a80-bd04-18b8ce5faea5",
+    "eventId": "6eb5736d-4f40-45a2-8123-366e51880df7",
+    "eventType": "ai.solution.completed",
+    "endpointId": "7993122c-d8d9-4ff8-906a-2bda495d85cc",
+    "endpointName": "Analytics",
+    "status": "RETRY_SCHEDULED",
+    "nextRetryAt": "2026-08-29T05:21:14Z",
+    "attemptCount": 1,
+    "lastAttempt": { "attemptNumber": 1, "status": "FAILED", "httpStatusCode": 500, "errorCode": "HTTP_ERROR" },
+    "createdAt": "2026-08-29T05:20:14Z",
+    "updatedAt": "2026-08-29T05:20:15Z"
+  }],
+  "nextCursor": null
+}
+```
+
+Delivery detail includes event and endpoint summaries and the snapshotted `targetUrl`. Both endpoint and target URLs are sanitized for dashboard output: user-info, query strings, and fragments are removed. This does not alter endpoint configuration or M5 target-URL snapshot semantics.
+
+```json
+{
+  "id": "0c764b64-1851-4a80-bd04-18b8ce5faea5",
+  "status": "RETRY_SCHEDULED",
   "event": {
-    "id": "evt_01",
-    "type": "ai.solution.completed"
+    "id": "6eb5736d-4f40-45a2-8123-366e51880df7",
+    "sourceEventId": "solution-93482",
+    "eventType": "ai.solution.completed",
+    "createdAt": "2026-08-29T05:20:14Z"
   },
   "endpoint": {
-    "id": "ep_01",
-    "name": "AI Analytics",
-    "url": "https://analytics.example.com/webhooks/ai"
+    "id": "7993122c-d8d9-4ff8-906a-2bda495d85cc",
+    "name": "Analytics",
+    "url": "https://consumer.example/webhooks/analytics"
   },
-  "attemptCount": 3,
-  "maxAttempts": 5,
+  "targetUrl": "https://consumer.example/webhooks/analytics",
+  "nextRetryAt": "2026-08-29T05:21:14Z",
   "createdAt": "2026-08-29T05:20:14Z",
-  "deliveredAt": "2026-08-29T05:20:54Z",
-  "attempts": [
-    {
-      "attemptNumber": 1,
-      "responseStatus": 500,
-      "latencyMs": 812
-    },
-    {
-      "attemptNumber": 2,
-      "responseStatus": 500,
-      "latencyMs": 624
-    },
-    {
-      "attemptNumber": 3,
-      "responseStatus": 200,
-      "latencyMs": 142
-    }
-  ]
+  "updatedAt": "2026-08-29T05:20:15Z"
 }
 ```
 
-## Manual Retry
+`nextRetryAt` is `null` for delivery statuses other than `RETRY_SCHEDULED`.
 
-```http
-POST /api/v1/deliveries/{deliveryId}/retry
-```
-
-Expected behavior is defined in `retry-policy.md`.
-
----
-
-# 10. Dashboard Overview API
-
-To avoid excessive frontend aggregation, version 1 may expose a dashboard summary endpoint.
-
-```http
-GET /api/v1/dashboard/overview
-```
-
-Suggested response:
+Attempt history is ascending by `attemptNumber`:
 
 ```json
-{
-  "events": 1284,
-  "deliveries": 2517,
-  "deliveryRate": 98.7,
-  "averageLatencyMs": 184,
-  "failedDeliveries": 24,
-  "retryingDeliveries": 5
-}
+[{ "id": "b5c5f56c-2ebb-498c-a6dd-c3d0a14bf8fc", "attemptNumber": 1, "status": "FAILED", "startedAt": "2026-08-29T05:20:14Z", "completedAt": "2026-08-29T05:20:15Z", "durationMs": 812, "httpStatusCode": 500, "errorCode": "HTTP_ERROR" }]
 ```
 
-This endpoint is optional if existing query endpoints can efficiently provide the same data.
+`IN_PROGRESS`, `SUCCEEDED`, `FAILED`, and `ABANDONED` are attempt states. `ABANDONED` means the outcome is unknown after stale/crash recovery; it does not prove the consumer did not receive the request.
+
+Dashboard responses never expose raw API keys, API-key hashes, signing secrets/ciphertext/nonces/master keys, claim tokens, webhook signatures, response bodies, or raw exception details. M9 signing-secret provisioning remains a separate one-time endpoint workflow.
 
 ---
 
-# 11. Error Format
+# 9. Error Format
 
 Use a consistent error response.
 
@@ -535,7 +513,7 @@ Validation example:
 
 ---
 
-# 12. API Design Principles
+# 10. API Design Principles
 
 - use stable identifiers
 - use versioned routes

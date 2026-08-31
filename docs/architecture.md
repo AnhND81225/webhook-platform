@@ -5,7 +5,8 @@
 Version 1 uses a modular monolith with PostgreSQL-backed asynchronous delivery.
 
 ```text
-                    React Dashboard
+            React Authentication Shell
+              (dashboard UI deferred)
                            |
                            | REST
                            v
@@ -428,7 +429,31 @@ It only publishes domain events.
 
 ---
 
-# 11. Future Transactional Outbox
+# 11. Dashboard Read Architecture (M10)
+
+M10 adds backend observability reads; it does not add a dashboard UI or new runtime infrastructure.
+
+```text
+Developer Dashboard
+        |
+        | session-authenticated read APIs
+        v
+Application-scoped observability
+        |
+        +--> Events
+        +--> Deliveries
+        +--> Attempts
+```
+
+Each read starts by resolving the Application through the authenticated local user. PostgreSQL performs the aggregate, joins, filtering, and keyset pagination in the query path; the API does not load an application's complete event or delivery history into Java. Event rows aggregate delivery counts in one grouped query. Delivery rows join event and endpoint data, count attempts, and use the existing attempt-history index for the latest-attempt lookup. Attempt history is one bounded query by delivery ID.
+
+The dashboard exposes sanitized endpoint and delivery target URLs. It removes user-info, query strings, and fragments before serializing; the stored M5 target URL remains unchanged.
+
+M10 query-plan review used representative PostgreSQL 17 data (13,000 events/deliveries and 2,535 attempts). Existing indexes support the current access paths, including `webhook_events(application_id, created_at DESC, id DESC)`, `webhook_events(application_id, source_event_id)`, `webhook_deliveries(event_id, endpoint_id)`, and `webhook_delivery_attempts(delivery_id, attempt_number DESC)`. No evidence-backed dashboard index was required, so Flyway remains at V9.
+
+---
+
+# 12. Future Transactional Outbox
 
 Direct HTTP publishing from AI Study Assistant has a possible failure:
 
@@ -459,7 +484,7 @@ Transactional outbox is not required for initial Webhook Platform MVP unless exp
 
 ---
 
-# 12. Future Scaling Path
+# 13. Future Scaling Path
 
 Only after measurement demonstrates need:
 

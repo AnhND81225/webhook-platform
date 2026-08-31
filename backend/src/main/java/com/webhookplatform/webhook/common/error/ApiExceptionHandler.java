@@ -17,6 +17,7 @@ import com.webhookplatform.webhook.endpoint.WebhookSigningSecretAlreadyProvision
 import com.webhookplatform.webhook.event.InvalidWebhookEventException;
 import com.webhookplatform.webhook.event.PayloadTooLargeException;
 import com.webhookplatform.webhook.event.SourceEventConflictException;
+import com.webhookplatform.webhook.dashboard.DashboardQueryException;
 import com.webhookplatform.webhook.subscription.WebhookSubscriptionConflictException;
 import com.webhookplatform.webhook.subscription.WebhookSubscriptionNotFoundException;
 
@@ -89,6 +90,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(SourceEventConflictException.class)
     ResponseEntity<ApiErrorResponse> sourceEventConflict(SourceEventConflictException exception) {
         return error(HttpStatus.CONFLICT, "SOURCE_EVENT_ID_CONFLICT", exception.getMessage());
+    }
+
+    @ExceptionHandler(DashboardQueryException.class)
+    ResponseEntity<ApiErrorResponse> dashboardQuery(DashboardQueryException exception) {
+        return error(HttpStatus.BAD_REQUEST, "INVALID_DASHBOARD_QUERY", exception.getMessage());
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status, String code, String message) {
