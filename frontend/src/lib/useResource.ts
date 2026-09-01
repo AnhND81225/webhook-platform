@@ -3,7 +3,10 @@ import { ApiError } from '../api/dashboard-api'
 
 type State<T> = { loading: boolean; data: T | null; error: ApiError | Error | null }
 
-export function useResource<T>(key: string, load: (signal: AbortSignal) => Promise<T>): State<T> & { reload: () => void } {
+export function useResource<T>(key: string, load: (signal: AbortSignal) => Promise<T>): State<T> & {
+  reload: () => void
+  update: (updater: (current: T | null) => T) => void
+} {
   const [version, setVersion] = useState(0)
   const [state, setState] = useState<State<T>>({ loading: true, data: null, error: null })
   const request = useRef(0)
@@ -19,5 +22,10 @@ export function useResource<T>(key: string, load: (signal: AbortSignal) => Promi
     })
     return () => controller.abort()
   }, [key, version, load])
-  return { ...state, reload: useCallback(() => setVersion((item) => item + 1), []) }
+  const reload = useCallback(() => setVersion((item) => item + 1), [])
+  const update = useCallback((updater: (current: T | null) => T) => {
+    request.current += 1
+    setState((current) => ({ loading: false, data: updater(current.data), error: null }))
+  }, [])
+  return { ...state, reload, update }
 }

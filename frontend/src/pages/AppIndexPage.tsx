@@ -1,14 +1,21 @@
-import { useCallback } from 'react'
-import { Navigate } from 'react-router-dom'
-import { dashboardApi } from '../api/dashboard-api'
-import { EmptyState, ErrorState, LoadingState } from '../components/states/States'
-import { useResource } from '../lib/useResource'
+import { Navigate, useOutletContext } from 'react-router-dom'
+import { Button } from '../components/ui/Button'
+import { ErrorState, LoadingState } from '../components/states/States'
+import type { ApplicationShellContext } from '../layouts/AuthenticatedLayout'
 
 export function AppIndexPage() {
-  const load = useCallback((signal: AbortSignal) => dashboardApi.listApplications(signal), [])
-  const state = useResource('applications:index', load)
-  if (state.loading) return <LoadingState label="Loading applications" />
-  if (state.error) return <ErrorState message={state.error.message} onRetry={state.reload} />
-  if (!state.data?.length) return <EmptyState title="No applications" detail="Create an application through the existing API before viewing dashboard data." />
-  return <Navigate to={`/app/${state.data[0].id}`} replace />
+  const context = useOutletContext<ApplicationShellContext>()
+  if (context.applicationsLoading) return <LoadingState label="Loading applications" />
+  if (context.applicationsError) return <ErrorState message={context.applicationsError.message} onRetry={context.retryApplications} />
+  if (!context.applications?.length) {
+    return (
+      <section className="application-onboarding">
+        <span className="eyebrow">Webhook Platform</span>
+        <h1>Create your first application</h1>
+        <p>Applications group events, endpoints, API keys, and delivery data for a producer.</p>
+        <Button onClick={(event) => context.openApplicationCreation(event.currentTarget)}>Create application</Button>
+      </section>
+    )
+  }
+  return <Navigate to={`/app/${context.applications[0].id}`} replace />
 }

@@ -8,6 +8,7 @@ import './styles.css'
 import './styles/tokens.css'
 import './styles/primitives.css'
 import './styles/shell.css'
+import './styles/application-onboarding.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

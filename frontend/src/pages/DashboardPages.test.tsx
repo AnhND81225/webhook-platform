@@ -11,6 +11,7 @@ import { OverviewPage } from './OverviewPage'
 import { AppIndexPage } from './AppIndexPage'
 import { dashboardApi } from '../api/dashboard-api'
 import { AuthProvider, useAuth } from '../auth/AuthProvider'
+import { AuthenticatedLayout } from '../layouts/AuthenticatedLayout'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
 const event = { id: '11111111-1111-1111-1111-111111111111', sourceEventId: 'source-1', eventType: 'ai.solution.completed', createdAt: '2026-08-29T05:20:14Z', deliveryCount: 2, deliveredCount: 1, failedCount: 0, retryScheduledCount: 1 }
@@ -79,12 +80,15 @@ it('renders delivery date controls, overview metrics, and redacts unexpected fie
 })
 
 it('selects the first owned application at /app and renders a no-applications state', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json([{ id: 'app-a', name: 'App A' }])).mockResolvedValueOnce(json([])))
-  const { unmount } = render(<MemoryRouter initialEntries={['/app']}><Routes><Route path="/app" element={<AppIndexPage />} /><Route path="/app/:applicationId" element={<span>Selected app</span>} /></Routes></MemoryRouter>)
+  const authenticatedUser = { id: 'user', email: 'user@example.com', displayName: 'User', avatarUrl: null }
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(json(url.includes('/auth/me') ? authenticatedUser : [{ id: 'app-a', name: 'App A', environment: 'DEVELOPMENT' }]))))
+  const renderIndex = () => render(<MemoryRouter initialEntries={['/app']}><AuthProvider><Routes><Route path="/app" element={<AuthenticatedLayout />}><Route index element={<AppIndexPage />} /><Route path=":applicationId" element={<span>Selected app</span>} /></Route></Routes></AuthProvider></MemoryRouter>)
+  const { unmount } = renderIndex()
   expect(await screen.findByText('Selected app')).toBeInTheDocument()
   unmount()
-  render(<MemoryRouter initialEntries={['/app']}><Routes><Route path="/app" element={<AppIndexPage />} /></Routes></MemoryRouter>)
-  expect(await screen.findByText('No applications')).toBeInTheDocument()
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(json(url.includes('/auth/me') ? authenticatedUser : []))))
+  renderIndex()
+  expect(await screen.findByText('Create your first application')).toBeInTheDocument()
 })
 
 it('keeps App B results when an aborted App A request resolves late', async () => {
