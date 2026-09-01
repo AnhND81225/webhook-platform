@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AuthenticatedLayout } from './layouts/AuthenticatedLayout'
 import { AppIndexPage } from './pages/AppIndexPage'
+import { ApplicationsPage } from './pages/ApplicationsPage'
+import { ApplicationSettingsPage } from './pages/ApplicationSettingsPage'
 import { DeliveryDetailPage } from './pages/DeliveryDetailPage'
 import { DeliveriesPage } from './pages/DeliveriesPage'
 import { EventDetailPage } from './pages/EventDetailPage'
@@ -9,6 +11,9 @@ import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
 import { LandingPage } from './pages/LandingPage'
 import { OverviewPage } from './pages/OverviewPage'
+import { ApiKeysPage } from './pages/ApiKeysPage'
+import { EndpointsPage } from './pages/EndpointsPage'
+import { EndpointDetailPage } from './pages/EndpointDetailPage'
 
 export default function App() {
   return (
@@ -24,7 +29,12 @@ export default function App() {
         )}
       >
         <Route index element={<AppIndexPage />} />
+        <Route path="applications" element={<ApplicationsPage />} />
+        <Route path=":applicationId/endpoints" element={<EndpointsPage />} />
+        <Route path=":applicationId/endpoints/:endpointId" element={<EndpointDetailPage />} />
+        <Route path=":applicationId/api-keys" element={<ApiKeysPage />} />
         <Route path=":applicationId" element={<OverviewPage />} />
+        <Route path=":applicationId/settings" element={<ApplicationSettingsPage />} />
         <Route path=":applicationId/events" element={<EventsPage />} />
         <Route path=":applicationId/events/:eventId" element={<EventDetailPage />} />
         <Route path=":applicationId/deliveries" element={<DeliveriesPage />} />
