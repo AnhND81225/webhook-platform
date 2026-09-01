@@ -65,6 +65,7 @@ public class SecurityConfiguration {
             HttpSecurity http,
             GoogleOidcUserService googleOidcUserService,
             OAuth2AuthorizedClientRepository authorizedClientRepository,
+            ProducerRequestSizeFilter producerRequestSizeFilter,
             RestAuthenticationEntryPoint restAuthenticationEntryPoint,
             RestAccessDeniedHandler restAccessDeniedHandler,
             @Value("${webhook-platform.frontend-url}") String frontendUrl) throws Exception {
@@ -91,6 +92,7 @@ public class SecurityConfiguration {
                         .defaultAuthenticationEntryPointFor(
                                 restAuthenticationEntryPoint,
                                 request -> request.getRequestURI().startsWith(request.getContextPath() + "/api/")))
+                .addFilterBefore(producerRequestSizeFilter, AnonymousAuthenticationFilter.class)
                 .sessionManagement(sessions -> sessions
                         .sessionFixation(fixation -> fixation.changeSessionId()))
                 .oauth2Login(oauth -> oauth

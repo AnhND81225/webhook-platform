@@ -1,6 +1,7 @@
 package com.webhookplatform.webhook.event;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -17,12 +18,22 @@ public class WebhookEventService {
     }
 
     public IngestionResult ingest(ProducerPrincipal producer, CreateWebhookEventRequest request) {
+        return ingestForApplication(producer.applicationId(), request);
+    }
+
+    /**
+     * Ingests an event for an application after the caller has already established
+     * its authority to act for that application. This keeps dashboard test events
+     * on the same persistence, idempotency, fan-out, and delivery path as producer
+     * events without pretending that the dashboard has an API key.
+     */
+    public IngestionResult ingestForApplication(UUID applicationId, CreateWebhookEventRequest request) {
         validatePayload(request);
         try {
-            return toResult(persistenceService.persist(producer, request));
+            return toResult(persistenceService.persist(applicationId, request));
         } catch (DataIntegrityViolationException exception) {
             Optional<WebhookEventPersistenceService.PersistedEvent> racedEvent =
-                    persistenceService.resolveAfterUniqueRace(producer, request);
+                    persistenceService.resolveAfterUniqueRace(applicationId, request);
             if (racedEvent.isPresent()) {
                 return toResult(racedEvent.get());
             }

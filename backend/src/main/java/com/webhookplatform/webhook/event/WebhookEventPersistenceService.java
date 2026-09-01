@@ -2,6 +2,7 @@ package com.webhookplatform.webhook.event;
 
 import java.time.Clock;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,7 +11,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.webhookplatform.webhook.application.Application;
 import com.webhookplatform.webhook.application.ApplicationRepository;
-import com.webhookplatform.webhook.security.ProducerPrincipal;
 import com.webhookplatform.webhook.delivery.WebhookDeliveryService;
 
 @Service
@@ -35,14 +35,14 @@ class WebhookEventPersistenceService {
     }
 
     @Transactional
-    public PersistedEvent persist(ProducerPrincipal producer, CreateWebhookEventRequest request) {
+    public PersistedEvent persist(UUID applicationId, CreateWebhookEventRequest request) {
         Optional<WebhookEvent> existing = eventRepository.findByApplicationIdAndSourceEventId(
-                producer.applicationId(), request.sourceEventId());
+                applicationId, request.sourceEventId());
         if (existing.isPresent()) {
-            return existingResult(producer, request, existing.get());
+            return existingResult(applicationId, request, existing.get());
         }
 
-        Application application = applicationRepository.getReferenceById(producer.applicationId());
+        Application application = applicationRepository.getReferenceById(applicationId);
         WebhookEvent event = WebhookEvent.create(
                 application,
                 request.sourceEventId(),
@@ -55,15 +55,15 @@ class WebhookEventPersistenceService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<PersistedEvent> resolveAfterUniqueRace(ProducerPrincipal producer, CreateWebhookEventRequest request) {
-        return eventRepository.findByApplicationIdAndSourceEventId(producer.applicationId(), request.sourceEventId())
-                .map(event -> existingResult(producer, request, event));
+    public Optional<PersistedEvent> resolveAfterUniqueRace(UUID applicationId, CreateWebhookEventRequest request) {
+        return eventRepository.findByApplicationIdAndSourceEventId(applicationId, request.sourceEventId())
+                .map(event -> existingResult(applicationId, request, event));
     }
 
     private PersistedEvent existingResult(
-            ProducerPrincipal producer, CreateWebhookEventRequest request, WebhookEvent existing) {
+            UUID applicationId, CreateWebhookEventRequest request, WebhookEvent existing) {
         if (!eventRepository.existsExactEvent(
-                producer.applicationId(), request.sourceEventId(), request.eventType(), serializePayload(request))) {
+                applicationId, request.sourceEventId(), request.eventType(), serializePayload(request))) {
             throw new SourceEventConflictException();
         }
         return new PersistedEvent(existing, false);
