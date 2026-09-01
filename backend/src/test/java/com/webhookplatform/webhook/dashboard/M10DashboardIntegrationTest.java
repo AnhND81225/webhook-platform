@@ -1,7 +1,9 @@
 package com.webhookplatform.webhook.dashboard;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -70,6 +72,29 @@ class M10DashboardIntegrationTest {
   mvc.perform(get(base+"/dashboard/summary").header("Authorization","Bearer "+raw)).andExpect(status().isUnauthorized());
   mvc.perform(post("/api/v1/events").header("Authorization","Bearer "+raw).contentType(MediaType.APPLICATION_JSON).content("{\"sourceEventId\":\"producer-boundary\",\"eventType\":\"ai.solution.completed\",\"payload\":{\"status\":\"ok\"}}")).andExpect(status().isCreated());
  }
+ @Test void dashboardTestEventsRequireSessionAndCsrfAreOwnedAndReuseRealEventDeliverySemantics() throws Exception {
+  UUID owner=user("test-event-owner"), other=user("test-event-other"), app=app(owner,"test-event-app"), foreign=app(other,"test-event-foreign");
+  UUID endpoint=endpoint(app,"https://test-event.example/hook"); subscription(endpoint,"ai.solution.completed");
+  String path="/api/v1/applications/"+app+"/test-events";
+  String request="{\"sourceEventId\":\"dashboard-test-event\",\"eventType\":\"ai.solution.completed\",\"payload\":{\"simulated\":true}}";
+  mvc.perform(post(path).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isUnauthorized());
+  mvc.perform(post(path).with(authentication(auth(owner))).contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isForbidden());
+  mvc.perform(post(path).with(authentication(auth(owner))).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
+    .andExpect(status().isCreated()).andExpect(jsonPath("$.sourceEventId").value("dashboard-test-event")).andExpect(jsonPath("$.payload").doesNotExist());
+  assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_events WHERE application_id=?",Long.class,app)).isEqualTo(1L);
+  assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_deliveries",Long.class)).isEqualTo(1L);
+  mvc.perform(post(path).with(authentication(auth(owner))).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isOk());
+  assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_events WHERE application_id=?",Long.class,app)).isEqualTo(1L);
+  mvc.perform(post(path).with(authentication(auth(owner))).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"sourceEventId\":\"dashboard-test-event\",\"eventType\":\"ai.solution.completed\",\"payload\":{\"simulated\":false}}"))
+    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SOURCE_EVENT_ID_CONFLICT"));
+  assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_deliveries",Long.class)).isEqualTo(1L);
+  mvc.perform(post("/api/v1/applications/"+foreign+"/test-events").with(authentication(auth(owner))).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isNotFound());
+  mvc.perform(post(path).with(authentication(auth(owner))).with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"sourceEventId\":\"invalid\",\"eventType\":\"Invalid\",\"payload\":[]}"))
+    .andExpect(status().isBadRequest());
+  String tooLarge="{\"sourceEventId\":\"large\",\"eventType\":\"ai.solution.completed\",\"payload\":{\"body\":\""+"x".repeat(1024*1024)+"\"}}";
+  mvc.perform(post(path).with(authentication(auth(owner))).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(tooLarge))
+    .andExpect(status().isPayloadTooLarge()).andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"));
+ }
  @Test void summaryIsApplicationScopedAndUsesFixedTwentyFourHourWindow() throws Exception {
   clock.set(Instant.parse("2030-01-07T00:00:00Z")); UUID owner=user("summary-owner"), other=user("summary-other"), app=app(owner,"summary-app"), foreign=app(other,"summary-other-app");
   String[] statuses={"PENDING","PROCESSING","RETRY_SCHEDULED","DELIVERED","FAILED"};
@@ -114,6 +139,7 @@ class M10DashboardIntegrationTest {
  private UUID app(UUID owner,String slug){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO applications(id,owner_user_id,name,slug,status,environment,created_at,updated_at)VALUES(?,?,?,?,'ACTIVE','DEVELOPMENT',now(),now())",id,owner,"app",slug);return id;}
  private UUID event(UUID app,String source,String type,Instant at){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO webhook_events(id,application_id,source_event_id,event_type,payload,created_at)VALUES(?,?,?,?,'{\"status\":\"ok\"}'::jsonb,?)",id,app,source,type,java.sql.Timestamp.from(at));return id;}
  private UUID endpoint(UUID app,String url){UUID id=UUID.randomUUID();jdbc.update("INSERT INTO webhook_endpoints(id,application_id,name,url,status,created_at,updated_at)VALUES(?,?, 'ep',?,'ACTIVE',now(),now())",id,app,url);return id;}
+ private void subscription(UUID endpoint,String eventType){jdbc.update("INSERT INTO webhook_subscriptions(id,endpoint_id,event_type,created_at)VALUES(?,?,?,now())",UUID.randomUUID(),endpoint,eventType);}
  private void apiKey(UUID application,String raw){try{String hash=java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)));jdbc.update("INSERT INTO api_keys(id,application_id,name,key_prefix,key_hash,status,created_at)VALUES(?,?, 'producer','test',?,'ACTIVE',now())",UUID.randomUUID(),application,hash);}catch(Exception e){throw new IllegalStateException(e);}}
  private UUID delivery(UUID event,UUID endpoint,String status,Instant at){UUID id=UUID.randomUUID();Object retry=status.equals("RETRY_SCHEDULED")?java.sql.Timestamp.from(at.plusSeconds(60)):null;Object started=status.equals("PROCESSING")?java.sql.Timestamp.from(at):null;Object token=status.equals("PROCESSING")?UUID.randomUUID():null;jdbc.update("INSERT INTO webhook_deliveries(id,event_id,endpoint_id,target_url,status,next_retry_at,processing_started_at,claim_token,created_at,updated_at)VALUES(?,?,?,'https://owner.test/hook?token=hidden',?,?,?,?,?,?)",id,event,endpoint,status,retry,started,token,java.sql.Timestamp.from(at),java.sql.Timestamp.from(at));return id;}
  private void attempt(UUID delivery,int number,String status,Integer http,String error){UUID id=UUID.randomUUID(),claim=UUID.randomUUID();Instant now=Instant.parse("2030-01-05T02:00:00Z");jdbc.update("INSERT INTO webhook_delivery_attempts(id,delivery_id,attempt_number,claim_token,status,started_at,completed_at,duration_ms,http_status_code,error_code)VALUES(?,?,?,?,?,?,?,?,?,?)",id,delivery,number,claim,status,java.sql.Timestamp.from(now),status.equals("IN_PROGRESS")?null:java.sql.Timestamp.from(now),status.equals("ABANDONED")?null:1L,http,error);}

@@ -35,6 +35,7 @@ export type WebhookEndpointStatus = 'ACTIVE' | 'DISABLED'
 export type WebhookEndpoint = { id: string; name: string; url: string; status: WebhookEndpointStatus; createdAt: string; updatedAt: string }
 export type CreatedWebhookEndpoint = WebhookEndpoint & { signingSecret: string }
 export type WebhookSubscription = { id: string; eventType: string; createdAt: string }
+export type WebhookEventResponse = { id: string; sourceEventId: string; eventType: string; createdAt: string }
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly code: string | null = null) { super(message) }
@@ -94,4 +95,5 @@ export const dashboardApi = {
   subscriptions: (applicationId: string, endpointId: string, signal?: AbortSignal) => request<WebhookSubscription[]>(`/api/v1/applications/${applicationId}/endpoints/${endpointId}/subscriptions`, undefined, signal),
   createSubscription: (applicationId: string, endpointId: string, requestBody: { eventType: string }) => mutation<WebhookSubscription>(`/api/v1/applications/${applicationId}/endpoints/${endpointId}/subscriptions`, 'POST', requestBody),
   deleteSubscription: (applicationId: string, endpointId: string, subscriptionId: string) => mutation<void>(`/api/v1/applications/${applicationId}/endpoints/${endpointId}/subscriptions/${subscriptionId}`, 'DELETE'),
+  sendTestEvent: (applicationId: string, requestBody: { sourceEventId: string; eventType: string; payload: unknown }) => mutation<WebhookEventResponse>(`/api/v1/applications/${applicationId}/test-events`, 'POST', requestBody),
 }

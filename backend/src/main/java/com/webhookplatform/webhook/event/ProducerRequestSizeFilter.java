@@ -22,6 +22,7 @@ public class ProducerRequestSizeFilter extends OncePerRequestFilter {
 
     static final long MAX_REQUEST_BYTES = 1024L * 1024L;
     private static final String EVENTS_PATH = "/api/v1/events";
+    private static final String TEST_EVENTS_PATH_SUFFIX = "/test-events";
 
     private final ObjectMapper objectMapper;
 
@@ -31,7 +32,9 @@ public class ProducerRequestSizeFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !EVENTS_PATH.equals(request.getRequestURI().substring(request.getContextPath().length()));
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return !EVENTS_PATH.equals(path)
+                && !path.matches("^/api/v1/applications/[^/]+" + TEST_EVENTS_PATH_SUFFIX + "$");
     }
 
     @Override

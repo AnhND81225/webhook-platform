@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
@@ -99,6 +99,37 @@ it('keeps App B results when an aborted App A request resolves late', async () =
   expect(await screen.findByText('from-app-b')).toBeInTheDocument()
   appA.resolve(json({ items: [{ ...event, sourceEventId: 'from-app-a' }], nextCursor: null }))
   await waitFor(() => expect(screen.queryByText('from-app-a')).not.toBeInTheDocument())
+})
+
+it('validates and sends a simulated test event once, then links to its real event detail', async () => {
+  const created = { id: 'test-event-id', sourceEventId: 'test-event-source', eventType: 'ai.solution.completed', createdAt: '2026-09-01T00:00:00Z' }
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(json({ items: [], nextCursor: null }))
+    .mockResolvedValueOnce(json({ token: 'csrf-token' }))
+    .mockResolvedValueOnce(new Response(JSON.stringify(created), { status: 201, headers: { 'Content-Type': 'application/json' } }))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<MemoryRouter initialEntries={['/app/app-1/events']}><Routes><Route path="/app/:applicationId/events" element={<EventsPage />} /><Route path="/app/:applicationId/events/:eventId" element={<span>Event detail</span>} /></Routes></MemoryRouter>)
+  await userEvent.click(await screen.findByRole('button', { name: 'Send test event' }))
+  const dialog = screen.getByRole('dialog')
+  await userEvent.clear(within(dialog).getByLabelText('Source event ID'))
+  await userEvent.type(within(dialog).getByLabelText('Source event ID'), 'test-event-source')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Send test event' }))
+  expect(await screen.findByText('Test event created.')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(3)
+  await userEvent.click(screen.getByRole('button', { name: 'View event' }))
+  expect(await screen.findByText('Event detail')).toBeInTheDocument()
+})
+
+it('rejects non-object JSON before submitting a simulated test event', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(json({ items: [], nextCursor: null }))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<MemoryRouter initialEntries={['/app/app-1/events']}><Routes><Route path="/app/:applicationId/events" element={<EventsPage />} /></Routes></MemoryRouter>)
+  await userEvent.click(await screen.findByRole('button', { name: 'Send test event' }))
+  const dialog = screen.getByRole('dialog')
+  fireEvent.change(within(dialog).getByLabelText('JSON payload'), { target: { value: '[]' } })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Send test event' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Payload must be a valid JSON object.')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
 })
 
 it('transitions the session state after a dashboard 401', async () => {
