@@ -146,7 +146,8 @@ button,
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 36px;
   border: 1px solid #e1e3e4;
   border-radius: 4px;
@@ -156,8 +157,16 @@ select {
   font: 13px/18px Inter, system-ui, sans-serif;
 }
 
+textarea {
+  min-height: 96px;
+  padding: 9px 10px;
+  line-height: 20px;
+  resize: vertical;
+}
+
 input:focus,
 select:focus,
+textarea:focus,
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid #3525cd;
@@ -213,7 +222,7 @@ a:focus-visible {
 .metric-card span, .detail-grid span, .detail-section span { color: #575e70; font-size: 12px; line-height: 16px; }
 .metric-card strong { color: #191c1d; font: 600 30px/36px Geist, Inter, sans-serif; }
 .filter-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 12px; border: 1px solid #e1e3e4; border-radius: 8px; background: #ffffff; }
-.filter-toolbar label { display: grid; min-width: 150px; gap: 4px; color: #575e70; font-size: 12px; line-height: 16px; }
+.filter-toolbar label { display: grid; min-width: 150px; flex: 1 1 160px; gap: 4px; color: #575e70; font-size: 12px; line-height: 16px; }
 .filter-toolbar button { min-height: 36px; }
 .table-scroll { overflow-x: auto; border: 1px solid #e1e3e4; border-radius: 8px; background: #ffffff; }
 table { width: 100%; min-width: 880px; border-collapse: collapse; text-align: left; }
@@ -384,6 +393,12 @@ td small, .error-code small { display: block; margin-top: 3px; color: #575e70; f
   }
 
   .metric-grid, .detail-grid, .two-column { grid-template-columns: 1fr; }
+  .filter-toolbar { align-items: stretch; }
+  .filter-toolbar label { min-width: min(100%, 150px); flex-basis: 100%; }
+  .filter-toolbar .ui-button { width: 100%; }
+  .ui-dialog-backdrop { align-items: end; padding: var(--space-3); }
+  .ui-dialog { width: 100%; max-height: min(88dvh, 720px); overflow-y: auto; }
+  .detail-heading { align-items: flex-start; }
   .topbar { padding: 0 24px; }
 
   .public-nav, .landing-section, .landing-hero, .public-footer { width: min(100% - 40px, 1184px); }
@@ -391,4 +406,9 @@ td small, .error-code small { display: block; margin-top: 3px; color: #575e70; f
   .landing-hero, .api-section { grid-template-columns: 1fr; gap: 40px; padding: 56px 0; }.landing-hero { min-height: auto; }.hero-copy h1 { font-size: 36px; line-height: 40px; }.hero-preview pre, .api-code pre { padding: 18px; font-size: 12px; line-height: 19px; }
   .landing-section { padding: 56px 0; }.feature-grid, .process-list { grid-template-columns: 1fr; }.feature-card, .feature-card:nth-child(2n), .feature-card:nth-last-child(-n + 2), .process-list li { border-right: 0; border-bottom: 1px solid #e1e3e4; }.feature-card:last-child, .process-list li:last-child { border-bottom: 0; }.feature-index { margin-bottom: 24px; }
   .landing-cta { display: grid; margin-bottom: 56px; padding: 24px; }.landing-cta .button { width: fit-content; }.public-footer { grid-template-columns: 1fr; align-items: start; gap: 20px; padding: 28px 0; }
+}
+
+@media (min-width: 721px) and (max-width: 1080px) {
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

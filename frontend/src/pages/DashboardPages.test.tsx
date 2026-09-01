@@ -120,6 +120,26 @@ it('validates and sends a simulated test event once, then links to its real even
   expect(await screen.findByText('Event detail')).toBeInTheDocument()
 })
 
+it('closes a completed test-event dialog when the application changes', async () => {
+  const created = { id: 'app-a-test-event', sourceEventId: 'app-a-source', eventType: 'ai.solution.completed', createdAt: '2026-09-01T00:00:00Z' }
+  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (url.includes('/applications/app-a/test-events') && init?.method === 'POST') return Promise.resolve(new Response(JSON.stringify(created), { status: 201, headers: { 'Content-Type': 'application/json' } }))
+    if (url.includes('/auth/csrf')) return Promise.resolve(json({ token: 'csrf-token' }))
+    if (url.includes('/app-b/events')) return Promise.resolve(json({ items: [{ ...event, sourceEventId: 'from-app-b' }], nextCursor: null }))
+    return Promise.resolve(json({ items: [], nextCursor: null }))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<MemoryRouter initialEntries={['/app/app-a/events']}><SwitchApplication /><Routes><Route path="/app/:applicationId/events" element={<EventsPage />} /></Routes></MemoryRouter>)
+  await userEvent.click(await screen.findByRole('button', { name: 'Send test event' }))
+  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Send test event' }))
+  expect(await screen.findByText('Test event created.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Switch application' }))
+  expect(await screen.findByText('from-app-b')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByText('Test event created.')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'View event' })).not.toBeInTheDocument()
+})
+
 it('rejects non-object JSON before submitting a simulated test event', async () => {
   const fetchMock = vi.fn().mockResolvedValue(json({ items: [], nextCursor: null }))
   vi.stubGlobal('fetch', fetchMock)

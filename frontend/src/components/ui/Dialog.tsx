@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
 
 type DialogProps = {
   title: string
@@ -10,10 +10,10 @@ type DialogProps = {
 
 export function Dialog({ title, children, onDismiss, returnFocusRef, initialFocusRef }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const titleId = 'dialog-title'
+  const titleId = useId()
 
   useEffect(() => {
-    initialFocusRef?.current?.focus()
+    ;(initialFocusRef?.current ?? dialogRef.current)?.focus()
     return () => returnFocusRef?.current?.focus()
   }, [initialFocusRef, returnFocusRef])
 
@@ -24,7 +24,7 @@ export function Dialog({ title, children, onDismiss, returnFocusRef, initialFocu
       return
     }
     if (event.key !== 'Tab') return
-    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')
     if (!focusable?.length) return
     const first = focusable[0]
     const last = focusable[focusable.length - 1]
@@ -39,7 +39,7 @@ export function Dialog({ title, children, onDismiss, returnFocusRef, initialFocu
 
   return (
     <div className="ui-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onDismiss() }}>
-      <div className="ui-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={handleKeyDown}>
+      <div className="ui-dialog" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={handleKeyDown}>
         <div className="ui-dialog-header"><h2 id={titleId}>{title}</h2></div>
         {children}
       </div>
