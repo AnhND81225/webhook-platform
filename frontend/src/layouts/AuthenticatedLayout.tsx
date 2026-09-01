@@ -166,8 +166,10 @@ export function AuthenticatedLayout() {
           {applicationId && (
             <>
               <NavLink end to={applicationRoute} onClick={closeNavigation}>Overview</NavLink>
+              <NavLink to={`/app/${applicationId}/endpoints`} onClick={closeNavigation}>Endpoints</NavLink>
               <NavLink to={`/app/${applicationId}/events`} onClick={closeNavigation}>Events</NavLink>
               <NavLink to={`/app/${applicationId}/deliveries`} onClick={closeNavigation}>Deliveries</NavLink>
+              <NavLink to={`/app/${applicationId}/api-keys`} onClick={closeNavigation}>API keys</NavLink>
               <NavLink to={`/app/${applicationId}/settings`} onClick={closeNavigation}>Settings</NavLink>
             </>
           )}
