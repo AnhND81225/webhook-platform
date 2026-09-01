@@ -65,4 +65,18 @@ describe('AuthProvider', () => {
       }),
     )
   })
+
+  it('aborts an in-flight session check when the provider unmounts', async () => {
+    let requestSignal: AbortSignal | undefined
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      requestSignal = init?.signal as AbortSignal | undefined
+      requestSignal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+    })))
+
+    const view = render(<AuthProvider><AuthProbe /></AuthProvider>)
+    await waitFor(() => expect(requestSignal).toBeDefined())
+    view.unmount()
+
+    expect(requestSignal?.aborted).toBe(true)
+  })
 })

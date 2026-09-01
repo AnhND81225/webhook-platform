@@ -19,9 +19,9 @@ async function requireSuccessfulResponse(response: Response): Promise<Response> 
   return response
 }
 
-export async function fetchCurrentUser(): Promise<AuthenticatedUser> {
+export async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthenticatedUser> {
   const response = await requireSuccessfulResponse(
-    await credentialedFetch('/api/v1/auth/me'),
+    await credentialedFetch('/api/v1/auth/me', { signal }),
   )
   return response.json() as Promise<AuthenticatedUser>
 }
