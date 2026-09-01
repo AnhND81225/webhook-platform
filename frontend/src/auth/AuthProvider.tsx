@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   fetchCurrentUser,
   logoutSession,
@@ -21,13 +21,20 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading', user: null })
+  const mounted = useRef(true)
 
-  const refresh = useCallback(async () => {
-    setState({ status: 'loading', user: null })
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    if (mounted.current) setState({ status: 'loading', user: null })
     try {
-      const user = await fetchCurrentUser()
-      setState({ status: 'authenticated', user })
+      const user = await fetchCurrentUser(signal)
+      if (!signal?.aborted && mounted.current) setState({ status: 'authenticated', user })
     } catch (error) {
+      if (signal?.aborted || !mounted.current) return
       if (error instanceof UnauthenticatedError) {
         setState({ status: 'unauthenticated', user: null })
         return
@@ -51,7 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    void refresh()
+    const controller = new AbortController()
+    void refresh(controller.signal)
+    return () => controller.abort()
   }, [refresh])
 
   useLayoutEffect(() => {
