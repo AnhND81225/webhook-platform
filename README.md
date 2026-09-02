@@ -1,9 +1,5 @@
 # Webhook Delivery Platform
 
-Current milestone: **M10 — Dashboard Backend APIs**
-
-This standalone platform receives immutable domain events from authenticated producer applications, creates durable delivery responsibilities for matching subscriptions, and delivers them to configured HTTP webhook endpoints. M7 adds durable metadata-only history for each physical outbound delivery attempt.
-
 ## Architecture and technology
 
 The MVP is a modular monolith: the React authentication shell and future dashboard call a Spring Boot backend, which persists durable state in PostgreSQL. M10 adds backend dashboard read APIs only; it does not add a React dashboard UI. A PostgreSQL-backed worker claims and processes pending deliveries. Production uses Vercel for the frontend and Nginx in front of a Dockerized backend on AWS EC2, connected to AWS RDS for PostgreSQL. Authenticated production deployments require related custom domains such as `webhook.<domain>` and `api.webhook.<domain>`.
@@ -146,10 +142,6 @@ Production uses the same image with its RDS URL and credentials supplied through
 - [Deployment](docs/deployment.md)
 - [Testing](docs/testing.md)
 - [Visual design system](DESIGN.md)
-
-## Continuous integration
-
-GitHub Actions runs on pushes, pull requests, and manual dispatches. It verifies the backend with Java 17, Maven, and PostgreSQL Testcontainers; tests, builds, and audits the frontend; validates the backend Docker build; and rejects tracked local or generated artifacts. The workflow does not deploy or publish images.
 
 ## M1–M11 status and MVP scope
 
